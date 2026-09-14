@@ -49,6 +49,7 @@ export default function Dashboard() {
             pointRadius: 3,
             tension: 0.4,
             fill: true,
+            spanGaps: true,  // sambung garis meski ada data kosong
           }],
         },
         options: { ...commonOptions, scales: { ...commonOptions.scales, y: { ...commonOptions.scales.y, min: 0, max: 50 } } },
@@ -67,6 +68,7 @@ export default function Dashboard() {
             pointRadius: 3,
             tension: 0.4,
             fill: true,
+            spanGaps: true,  // sambung garis meski ada data kosong
           }],
         },
         options: { ...commonOptions, scales: { ...commonOptions.scales, y: { ...commonOptions.scales.y, min: 0, max: 100 } } },

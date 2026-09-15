@@ -407,6 +407,9 @@ export default function Dashboard() {
         .chart-box{background:#1e293b;border:1px solid #334155;border-radius:12px;padding:18px;margin-bottom:18px}
         .chart-box h2{font-size:.78rem;color:#94a3b8;text-transform:uppercase;letter-spacing:1px;margin-bottom:12px}
 
+        .table-box{background:#1e293b;border:1px solid #334155;border-radius:12px;padding:18px;margin-bottom:18px}
+        .table-box h2{font-size:.78rem;color:#94a3b8;text-transform:uppercase;letter-spacing:1px;margin-bottom:12px}
+
         .month-nav{display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap}
         .month-nav .title{font-size:1rem;font-weight:600;color:#38bdf8;flex:1}
         .nav-btn{padding:5px 13px;border:1px solid #334155;background:#1e293b;color:#e2e8f0;border-radius:6px;cursor:pointer;font-size:.83rem;transition:background .2s}
@@ -432,19 +435,45 @@ export default function Dashboard() {
 
         footer{text-align:center;font-size:.7rem;color:#475569;padding:14px}
 
-        .print-title{display:none;text-align:center;font-size:1rem;font-weight:700;margin-bottom:8px}
+        .print-header, .print-meta, .print-signature{display:none}
+
         @media print{
-          body{background:#fff!important;color:#000!important}
-          .header{background:#fff!important;border-bottom:2px solid #000!important}
-          .header h1{color:#000!important}
-          .status-pill,.tabs,.print-btn,.nav-btn,footer,.chart-box{display:none!important}
-          .content{padding:0!important}
-          .month-nav .title{color:#000!important}
-          table{font-size:.73rem!important}
-          thead th{background:#f0f0f0!important;color:#000!important;border:1px solid #ccc!important}
-          tbody td{border:1px solid #ddd!important;color:#000!important}
-          tbody tr:nth-child(even){background:#f9f9f9!important}
-          .print-title{display:block!important}
+          body{background:#fff!important;color:#000!important;font-size:9.5pt!important}
+          .header, .no-print, .status-pill, .tabs, .print-btn, .nav-btn, footer, .chart-box, .alert, .legend{display:none!important}
+          .content{padding:0!important;max-width:100%!important;margin:0!important}
+
+          /* Kop Surat Resmi Cetak */
+          .print-header{display:block!important;text-align:center;border-bottom:2px solid #000;padding-bottom:6px;margin-bottom:10px}
+          .print-header h2{font-size:13pt;font-weight:700;color:#000;margin:0}
+          .print-header h3{font-size:11pt;font-weight:600;color:#1e293b;margin:2px 0}
+          .print-header p{font-size:8.5pt;color:#475569;margin:2px 0}
+          
+          .print-meta{display:flex!important;justify-content:space-between;font-size:8pt;margin-bottom:10px;color:#1e293b;font-weight:600}
+
+          /* Kartu Ringkasan Cetak */
+          .cards{display:grid!important;grid-template-columns:repeat(4,1fr)!important;gap:6px!important;margin-bottom:12px!important}
+          .card{background:#f8fafc!important;border:1px solid #64748b!important;border-radius:4px!important;padding:6px 8px!important;box-shadow:none!important}
+          .card .lbl{font-size:7pt!important;color:#334155!important;font-weight:600;margin-bottom:2px!important}
+          .card .val{font-size:12pt!important;font-weight:700!important;color:#000!important}
+          .card .unt{font-size:7pt!important;color:#64748b!important}
+
+          /* Tabel Cetak */
+          .table-box{background:transparent!important;border:none!important;padding:0!important;margin-bottom:10px!important}
+          .table-box h2{display:none!important}
+          .table-wrap{overflow:visible!important}
+          table{width:100%!important;border-collapse:collapse!important;font-size:8pt!important}
+          thead th{background:#e2e8f0!important;color:#000!important;border:1px solid #475569!important;padding:4px 3px!important;font-weight:700!important;font-size:7.5pt!important}
+          tbody td{border:1px solid #94a3b8!important;padding:3px 3px!important;color:#000!important;text-align:center!important;font-size:7.5pt!important}
+          tbody tr:nth-child(even){background:#f8fafc!important}
+          .td-date{font-weight:700!important;color:#000!important;text-align:left!important;padding-left:6px!important}
+          .suhu-val{color:#000!important;font-weight:700!important}
+          .humid-val{color:#000!important;font-weight:600!important}
+          .td-nodata{color:#64748b!important}
+
+          /* Tanda Tangan */
+          .print-signature{display:flex!important;justify-content:space-between;margin-top:20px;font-size:8pt;color:#000;page-break-inside:avoid}
+          .signature-box{text-align:center;width:200px}
+          .signature-space{height:45px}
         }
       `}</style>
 
@@ -582,11 +611,20 @@ export default function Dashboard() {
         ══════════════════════════════════════════════ */}
         {tab === 'monthly' && (
           <>
-            <div className="print-title">
-              Laporan Suhu Server RS Fatmawati — {monthly?.nama_bulan}
+            {/* Header Resmi untuk Cetak / PDF */}
+            <div className="print-header">
+              <h2>RUMAH SAKIT UMUM PUSAT FATMAWATI</h2>
+              <h3>LAPORAN MONITORING SUHU &amp; KELEMBABAN RUANG SERVER</h3>
+              <p>Instalasi Teknologi Informasi &amp; Komunikasi | Periode: {monthly?.nama_bulan}</p>
             </div>
 
-            <div className="month-nav">
+            <div className="print-meta">
+              <span>Jadwal Pencatatan: 🌅 Pagi (08:00 WIB) &amp; 🌙 Malam (20:00 WIB)</span>
+              <span>Waktu Cetak: {new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' })} WIB</span>
+            </div>
+
+            {/* Navigasi Web (disembunyikan saat cetak) */}
+            <div className="month-nav no-print">
               <button className="nav-btn" onClick={prevMonth}>← Prev</button>
               <span className="title">📋 {BULAN_ID[selMonth-1]} {selYear}</span>
               <button className="nav-btn" onClick={nextMonth}
@@ -600,20 +638,19 @@ export default function Dashboard() {
               <div style={{textAlign:'center',padding:'40px',color:'#94a3b8'}}>⏳ Memuat laporan...</div>
             ) : monthly ? (
               <>
-                {/* Grafik Bulanan — Suhu Pagi & Malam */}
-                <div className="chart-box">
-                  <h2>📈 Grafik Suhu Bulanan — Pagi & Malam</h2>
+                {/* Grafik Bulanan (hanya tampil di Web, disembunyikan saat cetak) */}
+                <div className="chart-box no-print">
+                  <h2>📈 Grafik Suhu Bulanan — Pagi &amp; Malam</h2>
                   <canvas ref={monthSuhuRef} height={100} />
                 </div>
 
-                {/* Grafik Bulanan — Kelembaban */}
-                <div className="chart-box">
-                  <h2>💧 Grafik Kelembaban Bulanan — Pagi & Malam</h2>
+                <div className="chart-box no-print">
+                  <h2>💧 Grafik Kelembaban Bulanan — Pagi &amp; Malam</h2>
                   <canvas ref={monthHumidRef} height={90} />
                 </div>
 
-                {/* Legend + info */}
-                <div className="legend">
+                {/* Legend + info di web */}
+                <div className="legend no-print">
                   <div className="legend-item"><span style={{color:'#22c55e'}}>✅</span> Normal (≤{SUHU_WARNING}°C)</div>
                   <div className="legend-item"><span style={{color:'#f59e0b'}}>⚠️</span> Perhatian ({SUHU_WARNING}–{SUHU_DANGER}°C)</div>
                   <div className="legend-item"><span style={{color:'#ef4444'}}>🔴</span> Bahaya ({'>'}{SUHU_DANGER}°C)</div>
@@ -622,20 +659,35 @@ export default function Dashboard() {
                   </div>
                 </div>
 
-                {/* Tabel */}
-                <div className="chart-box">
-                  <h2>📋 Tabel Data Harian</h2>
+                {/* Kartu statistik ringkasan */}
+                {(() => {
+                  const rows = monthly.data.filter(r => r.has_data)
+                  const all  = [...rows.map(r=>r.suhu_pagi),...rows.map(r=>r.suhu_malam)].filter(v=>v!==null)
+                  const avg  = a => a.length?(a.reduce((x,y)=>x+y,0)/a.length).toFixed(1):'-'
+                  return (
+                    <div className="cards" style={{marginBottom:'16px'}}>
+                      <div className="card"><div className="lbl">📊 Rata-rata Suhu</div><div className="val" style={{color:suhuColor(parseFloat(avg(all))),fontSize:'1.6rem'}}>{avg(all)}°C</div></div>
+                      <div className="card"><div className="lbl">🔺 Suhu Tertinggi</div><div className="val" style={{color:'#ef4444',fontSize:'1.6rem'}}>{all.length?Math.max(...all).toFixed(1):'-'}°C</div></div>
+                      <div className="card"><div className="lbl">🔻 Suhu Terendah</div><div className="val" style={{color:'#22c55e',fontSize:'1.6rem'}}>{all.length?Math.min(...all).toFixed(1):'-'}°C</div></div>
+                      <div className="card"><div className="lbl">📅 Hari Tercatat</div><div className="val" style={{color:'#a78bfa',fontSize:'1.6rem'}}>{rows.length}</div><div className="unt">dari {monthly.total_hari} hari</div></div>
+                    </div>
+                  )
+                })()}
+
+                {/* Tabel Data Harian */}
+                <div className="table-box">
+                  <h2 className="no-print">📋 Tabel Pencatatan Suhu &amp; Kelembaban Harian</h2>
                   <div className="table-wrap">
                     <table>
                       <thead>
                         <tr>
-                          <th rowSpan={2} style={{textAlign:'left',paddingLeft:'10px'}}>Tanggal</th>
-                          <th colSpan={4} style={{borderBottom:'1px solid #475569',color:'#fbbf24'}}>🌅 Pagi</th>
-                          <th colSpan={4} style={{borderBottom:'1px solid #475569',color:'#818cf8'}}>🌙 Malam</th>
+                          <th rowSpan={2} style={{textAlign:'left',paddingLeft:'8px'}}>Tanggal</th>
+                          <th colSpan={4} style={{borderBottom:'1px solid #475569',color:'#fbbf24'}}>🌅 Pagi (08:00 WIB)</th>
+                          <th colSpan={4} style={{borderBottom:'1px solid #475569',color:'#818cf8'}}>🌙 Malam (20:00 WIB)</th>
                         </tr>
                         <tr>
-                          <th>Waktu</th><th>Suhu</th><th>Humid</th><th>Ket</th>
-                          <th>Waktu</th><th>Suhu</th><th>Humid</th><th>Ket</th>
+                          <th>Waktu</th><th>Suhu</th><th>Humid</th><th>Status</th>
+                          <th>Waktu</th><th>Suhu</th><th>Humid</th><th>Status</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -645,7 +697,7 @@ export default function Dashboard() {
                             <tr key={row.tanggal} style={isToday?{background:'rgba(56,189,248,.08)'}:{}}>
                               <td className="td-date">
                                 {row.hari} {BULAN_ID[selMonth-1].slice(0,3)}
-                                {isToday && <span style={{color:'#38bdf8',marginLeft:4,fontSize:'.7rem'}}>●</span>}
+                                {isToday && <span className="no-print" style={{color:'#38bdf8',marginLeft:4,fontSize:'.7rem'}}>●</span>}
                               </td>
                               {row.has_data ? (
                                 <>
@@ -669,20 +721,22 @@ export default function Dashboard() {
                   </div>
                 </div>
 
-                {/* Kartu statistik */}
-                {(() => {
-                  const rows = monthly.data.filter(r => r.has_data)
-                  const all  = [...rows.map(r=>r.suhu_pagi),...rows.map(r=>r.suhu_malam)].filter(v=>v!==null)
-                  const avg  = a => a.length?(a.reduce((x,y)=>x+y,0)/a.length).toFixed(1):'-'
-                  return (
-                    <div className="cards" style={{marginTop:'18px'}}>
-                      <div className="card"><div className="lbl">📊 Rata-rata Suhu</div><div className="val" style={{color:suhuColor(parseFloat(avg(all))),fontSize:'1.7rem'}}>{avg(all)}°C</div></div>
-                      <div className="card"><div className="lbl">🔺 Suhu Tertinggi</div><div className="val" style={{color:'#ef4444',fontSize:'1.7rem'}}>{all.length?Math.max(...all).toFixed(1):'-'}°C</div></div>
-                      <div className="card"><div className="lbl">🔻 Suhu Terendah</div><div className="val" style={{color:'#22c55e',fontSize:'1.7rem'}}>{all.length?Math.min(...all).toFixed(1):'-'}°C</div></div>
-                      <div className="card"><div className="lbl">📅 Hari Tercatat</div><div className="val" style={{color:'#a78bfa',fontSize:'1.7rem'}}>{rows.length}</div><div className="unt">dari {monthly.total_hari} hari</div></div>
-                    </div>
-                  )
-                })()}
+                {/* Bagian Tanda Tangan Cetak */}
+                <div className="print-signature">
+                  <div className="signature-box">
+                    <p>Petugas Monitoring,</p>
+                    <div className="signature-space"></div>
+                    <p><b>( .................................................. )</b></p>
+                    <p style={{fontSize:'7.5pt',color:'#475569'}}>NIP / NIK</p>
+                  </div>
+                  <div className="signature-box">
+                    <p>Mengetahui,</p>
+                    <p><b>Penanggung Jawab Ruang Server</b></p>
+                    <div className="signature-space"></div>
+                    <p><b>( .................................................. )</b></p>
+                    <p style={{fontSize:'7.5pt',color:'#475569'}}>NIP / NIK</p>
+                  </div>
+                </div>
               </>
             ) : (
               <div style={{textAlign:'center',padding:'40px',color:'#94a3b8'}}>Gagal memuat laporan.</div>

@@ -32,7 +32,6 @@ export default function Dashboard() {
   const dailyHumidRef  = useRef(null)
   const dailySuhuObj   = useRef(null)
   const dailyHumidObj  = useRef(null)
-  const dailyInited    = useRef(false)
   const [dailyData, setDailyData] = useState([])
 
   // ── Weekly chart refs ────────────────────────────────────────────────────
@@ -41,7 +40,6 @@ export default function Dashboard() {
   const weekHumidRef  = useRef(null)
   const weekSuhuObj   = useRef(null)
   const weekHumidObj  = useRef(null)
-  const weekInited    = useRef(false)
 
   // ── Monthly ──────────────────────────────────────────────────────────────
   const now = new Date()
@@ -54,7 +52,20 @@ export default function Dashboard() {
   const monthHumidRef = useRef(null)
   const monthSuhuObj  = useRef(null)
   const monthHumidObj = useRef(null)
-  const monthInited   = useRef(false)
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // CLEANUP CHARTS ON TAB SWITCH
+  // ═══════════════════════════════════════════════════════════════════════════
+  useEffect(() => {
+    return () => {
+      if (dailySuhuObj.current)  { try { dailySuhuObj.current.destroy() } catch (_) {} dailySuhuObj.current = null }
+      if (dailyHumidObj.current) { try { dailyHumidObj.current.destroy() } catch (_) {} dailyHumidObj.current = null }
+      if (weekSuhuObj.current)   { try { weekSuhuObj.current.destroy() } catch (_) {} weekSuhuObj.current = null }
+      if (weekHumidObj.current)  { try { weekHumidObj.current.destroy() } catch (_) {} weekHumidObj.current = null }
+      if (monthSuhuObj.current)  { try { monthSuhuObj.current.destroy() } catch (_) {} monthSuhuObj.current = null }
+      if (monthHumidObj.current) { try { monthHumidObj.current.destroy() } catch (_) {} monthHumidObj.current = null }
+    }
+  }, [tab])
 
   // ═══════════════════════════════════════════════════════════════════════════
   // POLLING REAL-TIME
@@ -102,12 +113,20 @@ export default function Dashboard() {
     if (tab !== 'realtime' || !dailySuhuRef.current || !dailyHumidRef.current) return
     if (dailyData.length === 0) return
 
+    let isMounted = true
+
     import('chart.js/auto').then(({ default: Chart }) => {
+      if (!isMounted) return
+      if (!dailySuhuRef.current || !dailyHumidRef.current) return
+
       const labels = dailyData.map(d => d.timestamp)
       const suhuVals = dailyData.map(d => d.suhu)
       const humidVals = dailyData.map(d => d.humid)
 
-      if (dailyInited.current && dailySuhuObj.current && dailyHumidObj.current) {
+      const isSuhuValid = dailySuhuObj.current && dailySuhuObj.current.canvas === dailySuhuRef.current
+      const isHumidValid = dailyHumidObj.current && dailyHumidObj.current.canvas === dailyHumidRef.current
+
+      if (isSuhuValid && isHumidValid) {
         dailySuhuObj.current.data.labels = labels
         dailySuhuObj.current.data.datasets[0].data = suhuVals
         dailySuhuObj.current.update('none')
@@ -117,8 +136,8 @@ export default function Dashboard() {
         return
       }
 
-      if (dailySuhuObj.current) { dailySuhuObj.current.destroy(); dailySuhuObj.current = null }
-      if (dailyHumidObj.current) { dailyHumidObj.current.destroy(); dailyHumidObj.current = null }
+      if (dailySuhuObj.current)  { try { dailySuhuObj.current.destroy() } catch (_) {} dailySuhuObj.current = null }
+      if (dailyHumidObj.current) { try { dailyHumidObj.current.destroy() } catch (_) {} dailyHumidObj.current = null }
 
       dailySuhuObj.current = new Chart(dailySuhuRef.current, {
         type: 'line',
@@ -159,8 +178,11 @@ export default function Dashboard() {
           scales: { ...commonAxis, y: { ...commonAxis.y, min: 0, max: 100 } },
         },
       })
-      dailyInited.current = true
     })
+
+    return () => {
+      isMounted = false
+    }
   }, [tab, dailyData])
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -178,12 +200,20 @@ export default function Dashboard() {
 
   useEffect(() => {
     if (tab !== 'weekly' || !weekSuhuRef.current || !weekHumidRef.current || weekly.length === 0) return
+    let isMounted = true
+
     import('chart.js/auto').then(({ default: Chart }) => {
+      if (!isMounted) return
+      if (!weekSuhuRef.current || !weekHumidRef.current) return
+
       const labels     = weekly.map(d => d.label)
       const suhuVals   = weekly.map(d => d.avg_suhu)
       const humidVals  = weekly.map(d => d.avg_humid)
 
-      if (weekInited.current && weekSuhuObj.current && weekHumidObj.current) {
+      const isSuhuValid = weekSuhuObj.current && weekSuhuObj.current.canvas === weekSuhuRef.current
+      const isHumidValid = weekHumidObj.current && weekHumidObj.current.canvas === weekHumidRef.current
+
+      if (isSuhuValid && isHumidValid) {
         weekSuhuObj.current.data.labels = labels
         weekSuhuObj.current.data.datasets[0].data = suhuVals
         weekSuhuObj.current.update()
@@ -193,8 +223,8 @@ export default function Dashboard() {
         return
       }
 
-      if (weekSuhuObj.current) weekSuhuObj.current.destroy()
-      if (weekHumidObj.current) weekHumidObj.current.destroy()
+      if (weekSuhuObj.current)  { try { weekSuhuObj.current.destroy() } catch (_) {} weekSuhuObj.current = null }
+      if (weekHumidObj.current) { try { weekHumidObj.current.destroy() } catch (_) {} weekHumidObj.current = null }
 
       weekSuhuObj.current = new Chart(weekSuhuRef.current, {
         type: 'line',
@@ -233,8 +263,9 @@ export default function Dashboard() {
           scales: { ...commonAxis, y: { ...commonAxis.y, min: 0, max: 100 } },
         },
       })
-      weekInited.current = true
     })
+
+    return () => { isMounted = false }
   }, [tab, weekly])
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -256,17 +287,23 @@ export default function Dashboard() {
   // ── Monthly charts (suhu & humid per hari) ───────────────────────────────
   useEffect(() => {
     if (tab !== 'monthly' || !monthly?.data || !monthSuhuRef.current || !monthHumidRef.current) return
+    let isMounted = true
 
     import('chart.js/auto').then(({ default: Chart }) => {
+      if (!isMounted) return
+      if (!monthSuhuRef.current || !monthHumidRef.current) return
+
       const rows      = monthly.data.filter(r => r.has_data)
       const labels    = rows.map(r => `${r.hari}`)
-      // Rata-rata pagi & malam per hari
       const suhuPagi  = rows.map(r => r.suhu_pagi)
       const suhuMalam = rows.map(r => r.suhu_malam)
       const humPagi   = rows.map(r => r.humid_pagi)
       const humMalam  = rows.map(r => r.humid_malam)
 
-      if (monthInited.current && monthSuhuObj.current && monthHumidObj.current) {
+      const isSuhuValid = monthSuhuObj.current && monthSuhuObj.current.canvas === monthSuhuRef.current
+      const isHumidValid = monthHumidObj.current && monthHumidObj.current.canvas === monthHumidRef.current
+
+      if (isSuhuValid && isHumidValid) {
         const ds0 = monthSuhuObj.current.data.datasets
         monthSuhuObj.current.data.labels = labels
         ds0[0].data = suhuPagi; ds0[1].data = suhuMalam
@@ -278,8 +315,8 @@ export default function Dashboard() {
         return
       }
 
-      if (monthSuhuObj.current)  { monthSuhuObj.current.destroy();  monthSuhuObj.current = null }
-      if (monthHumidObj.current) { monthHumidObj.current.destroy(); monthHumidObj.current = null }
+      if (monthSuhuObj.current)  { try { monthSuhuObj.current.destroy() } catch (_) {} monthSuhuObj.current = null }
+      if (monthHumidObj.current) { try { monthHumidObj.current.destroy() } catch (_) {} monthHumidObj.current = null }
 
       const lineOpt = {
         responsive: true, animation: { duration: 400 },
@@ -310,12 +347,10 @@ export default function Dashboard() {
         },
         options: { ...lineOpt, scales: { ...commonAxis, y: { ...commonAxis.y, min: 0, max: 100 } } },
       })
-      monthInited.current = true
     })
-  }, [tab, monthly])
 
-  // Reset monthly chart flag saat bulan berubah
-  useEffect(() => { monthInited.current = false }, [selYear, selMonth])
+    return () => { isMounted = false }
+  }, [tab, monthly, selYear, selMonth])
 
   const prevMonth = () => {
     if (selMonth === 1) { setSelYear(y => y-1); setSelMonth(12) }

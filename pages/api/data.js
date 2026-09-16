@@ -56,30 +56,126 @@ export default async function handler(req, res) {
     return res.status(201).json({ success: true, message: 'Data tersimpan' })
   }
 
-  // ─── GET: Ambil 60 data terakhir ─────────────────────────────────────────
+  // ─── GET: Ambil data grafik ──────────────────────────────────────────────
   if (req.method === 'GET') {
-    const { data, error } = await supabase
-      .from('sensor_readings')
-      .select('id, suhu, humid, device, created_at')
-      .order('created_at', { ascending: false })
-      .limit(60)
+    const range = req.query.range || '24h'
 
-    if (error) {
-      return res.status(500).json({ error: 'Gagal ambil data', detail: error.message })
+    // Mode Real-Time: 60 data terakhir (per 10 detik)
+    if (range === 'realtime') {
+      const { data, error } = await supabase
+        .from('sensor_readings')
+        .select('id, suhu, humid, device, created_at')
+        .order('created_at', { ascending: false })
+        .limit(60)
+
+      if (error) {
+        return res.status(500).json({ error: 'Gagal ambil data', detail: error.message })
+      }
+
+      const result = (data || []).reverse().map(row => ({
+        id:        row.id,
+        suhu:      row.suhu,
+        humid:     row.humid,
+        device:    row.device,
+        timestamp: new Date(row.created_at).toLocaleTimeString('id-ID', {
+          hour: '2-digit', minute: '2-digit', second: '2-digit', timeZone: 'Asia/Jakarta'
+        }),
+        full_time: new Date(row.created_at).toLocaleString('id-ID', {
+          day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', second: '2-digit', timeZone: 'Asia/Jakarta'
+        }),
+        has_data:  true,
+      }))
+
+      return res.status(200).json(result)
     }
 
-    // Balik urutan supaya grafik dari kiri ke kanan (lama → baru)
-    const result = (data || []).reverse().map(row => ({
-      id:        row.id,
-      suhu:      row.suhu,
-      humid:     row.humid,
-      device:    row.device,
-      timestamp: new Date(row.created_at).toLocaleTimeString('id-ID', {
-        hour: '2-digit', minute: '2-digit', second: '2-digit', timeZone: 'Asia/Jakarta'
-      }),
-    }))
+    // Default: range === '24h' (Format 24 Jam Terakhir)
+    // Query 24 jam dengan 24 query paralel per jam agar data akurat & bebas limit 1000 row
+    try {
+      const now = new Date()
+      const currentMs = now.getTime()
 
-    return res.status(200).json(result)
+      const hourPromises = []
+      for (let h = 23; h >= 0; h--) {
+        const slotStart = new Date(currentMs - (h + 1) * 3600000)
+        const slotEnd   = new Date(currentMs - h * 3600000)
+
+        hourPromises.push(
+          supabase
+            .from('sensor_readings')
+            .select('suhu, humid, created_at')
+            .gte('created_at', slotStart.toISOString())
+            .lt('created_at', slotEnd.toISOString())
+            .order('created_at', { ascending: true })
+            .then(({ data, error }) => ({
+              slotStart,
+              slotEnd,
+              rows: error ? [] : (data || []),
+            }))
+        )
+      }
+
+      const hourResults = await Promise.all(hourPromises)
+
+      // Bentuk titik-titik data (interval 15 menit = 96 titik dalam 24 jam)
+      const points = []
+
+      for (const hr of hourResults) {
+        const baseTime = hr.slotStart.getTime()
+        for (let s = 0; s < 4; s++) {
+          const subStart = new Date(baseTime + s * 15 * 60 * 1000)
+          const subEnd   = new Date(baseTime + (s + 1) * 15 * 60 * 1000)
+
+          if (subStart > now) continue
+
+          const inSlot = hr.rows.filter(r => {
+            const t = new Date(r.created_at).getTime()
+            return t >= subStart.getTime() && t < subEnd.getTime()
+          })
+
+          const timeLabel = subStart.toLocaleTimeString('id-ID', {
+            hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Jakarta'
+          })
+          const fullTime = subStart.toLocaleString('id-ID', {
+            day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Jakarta'
+          })
+
+          if (inSlot.length > 0) {
+            const suhus  = inSlot.map(r => r.suhu)
+            const humids = inSlot.map(r => r.humid)
+            const avgSuhu  = parseFloat((suhus.reduce((a, b) => a + b, 0) / suhus.length).toFixed(1))
+            const avgHumid = parseFloat((humids.reduce((a, b) => a + b, 0) / humids.length).toFixed(1))
+            const minSuhu  = Math.min(...suhus)
+            const maxSuhu  = Math.max(...suhus)
+
+            points.push({
+              timestamp: timeLabel,
+              full_time: `${fullTime} WIB`,
+              suhu:      avgSuhu,
+              min_suhu:  minSuhu,
+              max_suhu:  maxSuhu,
+              humid:     avgHumid,
+              count:     inSlot.length,
+              has_data:  true,
+            })
+          } else {
+            points.push({
+              timestamp: timeLabel,
+              full_time: `${fullTime} WIB`,
+              suhu:      null,
+              humid:     null,
+              count:     0,
+              has_data:  false,
+            })
+          }
+        }
+      }
+
+      return res.status(200).json(points)
+    } catch (err) {
+      console.error('[24h query error]', err)
+      return res.status(500).json({ error: 'Gagal memproses data 24 jam', detail: err.message })
+    }
   }
 
   res.setHeader('Allow', ['GET', 'POST', 'OPTIONS'])

@@ -144,23 +144,27 @@ export default function Dashboard() {
   }, [])
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // DAILY DATA (60 titik terakhir)
   // ═══════════════════════════════════════════════════════════════════════════
-  const loadDaily = useCallback(async () => {
+  // DAILY DATA (24 Jam Terakhir & Real-Time)
+  // ═══════════════════════════════════════════════════════════════════════════
+  const [chartRange, setChartRange] = useState('24h') // '24h' | 'realtime'
+
+  const loadDaily = useCallback(async (rType = chartRange) => {
     try {
-      const r = await fetch('/api/data')
+      const r = await fetch(`/api/data?range=${rType}`)
       const d = await r.json()
       setDailyData(Array.isArray(d) ? d : [])
     } catch { setDailyData([]) }
-  }, [])
+  }, [chartRange])
 
-  // Load + auto-refresh daily tiap 10 detik saat di tab realtime
+  // Load + auto-refresh
   useEffect(() => {
     if (tab !== 'realtime') return
-    loadDaily()
-    const iv = setInterval(loadDaily, 10000)
+    loadDaily(chartRange)
+    const refreshInterval = chartRange === '24h' ? 30000 : 10000
+    const iv = setInterval(() => loadDaily(chartRange), refreshInterval)
     return () => clearInterval(iv)
-  }, [tab, loadDaily])
+  }, [tab, chartRange, loadDaily])
 
   // ── Init / update daily charts ────────────────────────────────────────────
   useEffect(() => {
@@ -183,7 +187,12 @@ export default function Dashboard() {
       if (isSuhuValid && isHumidValid) {
         dailySuhuObj.current.data.labels = labels
         dailySuhuObj.current.data.datasets[0].data = suhuVals
+        dailySuhuObj.current.data.datasets[1].data = labels.map(() => SUHU_WARNING)
+        if (dailySuhuObj.current.data.datasets[2]) {
+          dailySuhuObj.current.data.datasets[2].data = labels.map(() => SUHU_DANGER)
+        }
         dailySuhuObj.current.update('none')
+
         dailyHumidObj.current.data.labels = labels
         dailyHumidObj.current.data.datasets[0].data = humidVals
         dailyHumidObj.current.update('none')
@@ -193,25 +202,67 @@ export default function Dashboard() {
       if (dailySuhuObj.current)  { try { dailySuhuObj.current.destroy() } catch (_) {} dailySuhuObj.current = null }
       if (dailyHumidObj.current) { try { dailyHumidObj.current.destroy() } catch (_) {} dailyHumidObj.current = null }
 
+      const is24h = chartRange === '24h'
+
       dailySuhuObj.current = new Chart(dailySuhuRef.current, {
         type: 'line',
         data: {
           labels,
           datasets: [{
-            label: 'Suhu (°C)',
+            label: is24h ? 'Suhu (°C)' : 'Suhu Real-Time (°C)',
             data: suhuVals,
-            borderColor: '#f87171', backgroundColor: 'rgba(248,113,113,0.1)',
-            borderWidth: 2, pointRadius: 2, tension: 0.3, fill: true, spanGaps: true,
+            borderColor: '#f87171', backgroundColor: 'rgba(248,113,113,0.12)',
+            borderWidth: 2, pointRadius: is24h ? 1 : 2.5, pointHoverRadius: 5, pointHitRadius: 10,
+            tension: 0.35, fill: true, spanGaps: true,
           }, {
-            label: `Batas (${SUHU_WARNING}°C)`,
+            label: `Batas Aman (${SUHU_WARNING}°C)`,
             data: labels.map(() => SUHU_WARNING),
-            borderColor: '#f59e0b', borderWidth: 1, borderDash: [6,4], pointRadius: 0, fill: false,
+            borderColor: '#f59e0b', borderWidth: 1.5, borderDash: [6,4], pointRadius: 0, fill: false,
+          }, {
+            label: `Batas Bahaya (${SUHU_DANGER}°C)`,
+            data: labels.map(() => SUHU_DANGER),
+            borderColor: '#ef4444', borderWidth: 1.5, borderDash: [4,4], pointRadius: 0, fill: false,
           }],
         },
         options: {
           responsive: true, animation: false,
-          plugins: { legend: { labels: { color: '#94a3b8', font: { size: 11 } } } },
-          scales: { ...commonAxis, y: { ...commonAxis.y, min: 15, max: 40 } },
+          interaction: { mode: 'index', intersect: false },
+          plugins: {
+            legend: { labels: { color: '#94a3b8', font: { size: 11 } } },
+            tooltip: {
+              callbacks: {
+                title: (items) => {
+                  const idx = items[0]?.dataIndex
+                  return dailyData[idx]?.full_time || items[0]?.label || ''
+                },
+                label: (item) => {
+                  const idx = item.dataIndex
+                  const d = dailyData[idx]
+                  if (item.datasetIndex === 0) {
+                    let txt = ` Suhu: ${item.raw !== null ? item.raw + '°C' : 'Tidak ada data'}`
+                    if (d && d.min_suhu !== undefined && d.max_suhu !== undefined && d.min_suhu !== d.max_suhu) {
+                      txt += ` (Rentang: ${d.min_suhu}°C – ${d.max_suhu}°C)`
+                    }
+                    return txt
+                  }
+                  return ` ${item.dataset.label}`
+                },
+              },
+            },
+          },
+          scales: {
+            ...commonAxis,
+            x: {
+              ...commonAxis.x,
+              ticks: {
+                color: '#94a3b8',
+                font: { size: 10 },
+                maxTicksLimit: is24h ? 13 : 10,
+                maxRotation: 0,
+              },
+            },
+            y: { ...commonAxis.y, min: 15, max: 35 },
+          },
         },
       })
 
@@ -220,16 +271,43 @@ export default function Dashboard() {
         data: {
           labels,
           datasets: [{
-            label: 'Kelembaban (%)',
+            label: is24h ? 'Kelembaban (%)' : 'Kelembaban Real-Time (%)',
             data: humidVals,
-            borderColor: '#60a5fa', backgroundColor: 'rgba(96,165,250,0.1)',
-            borderWidth: 2, pointRadius: 2, tension: 0.3, fill: true, spanGaps: true,
+            borderColor: '#60a5fa', backgroundColor: 'rgba(96,165,250,0.12)',
+            borderWidth: 2, pointRadius: is24h ? 1 : 2.5, pointHoverRadius: 5, pointHitRadius: 10,
+            tension: 0.35, fill: true, spanGaps: true,
           }],
         },
         options: {
           responsive: true, animation: false,
-          plugins: { legend: { labels: { color: '#94a3b8', font: { size: 11 } } } },
-          scales: { ...commonAxis, y: { ...commonAxis.y, min: 0, max: 100 } },
+          interaction: { mode: 'index', intersect: false },
+          plugins: {
+            legend: { labels: { color: '#94a3b8', font: { size: 11 } } },
+            tooltip: {
+              callbacks: {
+                title: (items) => {
+                  const idx = items[0]?.dataIndex
+                  return dailyData[idx]?.full_time || items[0]?.label || ''
+                },
+                label: (item) => {
+                  return ` Kelembaban: ${item.raw !== null ? item.raw + '%' : 'Tidak ada data'}`
+                },
+              },
+            },
+          },
+          scales: {
+            ...commonAxis,
+            x: {
+              ...commonAxis.x,
+              ticks: {
+                color: '#94a3b8',
+                font: { size: 10 },
+                maxTicksLimit: is24h ? 13 : 10,
+                maxRotation: 0,
+              },
+            },
+            y: { ...commonAxis.y, min: 0, max: 100 },
+          },
         },
       })
     })
@@ -237,7 +315,7 @@ export default function Dashboard() {
     return () => {
       isMounted = false
     }
-  }, [tab, dailyData])
+  }, [tab, dailyData, chartRange])
 
   // ═══════════════════════════════════════════════════════════════════════════
   // WEEKLY
@@ -628,22 +706,95 @@ export default function Dashboard() {
               </div>
             </div>
 
-            {/* Legend */}
-            <div className="legend">
-              <div className="legend-item"><span style={{color:'#22c55e'}}>●</span> Normal (≤{SUHU_WARNING}°C)</div>
-              <div className="legend-item"><span style={{color:'#f59e0b'}}>●</span> Perhatian ({SUHU_WARNING}–{SUHU_DANGER}°C)</div>
-              <div className="legend-item"><span style={{color:'#ef4444'}}>●</span> Bahaya ({'>'}{SUHU_DANGER}°C)</div>
+            {/* Bar Navigasi & Rentang Waktu: 24 Jam Terakhir (Default) / Real-Time 10 Menit */}
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',flexWrap:'wrap',gap:10,marginBottom:14}}>
+              <div className="legend" style={{marginBottom:0}}>
+                <div className="legend-item"><span style={{color:'#22c55e'}}>●</span> Normal (≤{SUHU_WARNING}°C)</div>
+                <div className="legend-item"><span style={{color:'#f59e0b'}}>●</span> Perhatian ({SUHU_WARNING}–{SUHU_DANGER}°C)</div>
+                <div className="legend-item"><span style={{color:'#ef4444'}}>●</span> Bahaya ({'>'}{SUHU_DANGER}°C)</div>
+              </div>
+              <div style={{display:'flex',gap:6,background:'#1e293b',padding:3,borderRadius:8,border:'1px solid #334155'}}>
+                <button
+                  onClick={() => {
+                    if (chartRange !== '24h') {
+                      setChartRange('24h')
+                      if (dailySuhuObj.current) { dailySuhuObj.current.destroy(); dailySuhuObj.current = null }
+                      if (dailyHumidObj.current) { dailyHumidObj.current.destroy(); dailyHumidObj.current = null }
+                    }
+                  }}
+                  style={{
+                    padding:'6px 14px',fontSize:'.78rem',fontWeight:600,borderRadius:6,border:'none',cursor:'pointer',
+                    background: chartRange === '24h' ? '#0ea5e9' : 'transparent',
+                    color: chartRange === '24h' ? '#fff' : '#94a3b8',
+                    transition:'all .2s'
+                  }}
+                >
+                  ⏱️ 24 Jam Terakhir
+                </button>
+                <button
+                  onClick={() => {
+                    if (chartRange !== 'realtime') {
+                      setChartRange('realtime')
+                      if (dailySuhuObj.current) { dailySuhuObj.current.destroy(); dailySuhuObj.current = null }
+                      if (dailyHumidObj.current) { dailyHumidObj.current.destroy(); dailyHumidObj.current = null }
+                    }
+                  }}
+                  style={{
+                    padding:'6px 14px',fontSize:'.78rem',fontWeight:600,borderRadius:6,border:'none',cursor:'pointer',
+                    background: chartRange === 'realtime' ? '#0ea5e9' : 'transparent',
+                    color: chartRange === 'realtime' ? '#fff' : '#94a3b8',
+                    transition:'all .2s'
+                  }}
+                >
+                  ⚡ Real-Time (10 Menit)
+                </button>
+              </div>
             </div>
 
-            {/* Grafik Harian — Suhu */}
+            {/* Ringkasan Statistik 24 Jam */}
+            {chartRange === '24h' && (() => {
+              const valid = dailyData.filter(d => d.suhu !== null && d.suhu !== undefined)
+              if (valid.length === 0) return null
+              const suhus = valid.map(d => d.suhu)
+              const humids = valid.map(d => d.humid).filter(h => h !== null && h !== undefined)
+              const avgS = (suhus.reduce((a,b)=>a+b,0)/suhus.length).toFixed(1)
+              const minS = Math.min(...suhus).toFixed(1)
+              const maxS = Math.max(...suhus).toFixed(1)
+              const avgH = humids.length ? (humids.reduce((a,b)=>a+b,0)/humids.length).toFixed(0) : '-'
+              return (
+                <div style={{display:'flex',justifyContent:'space-around',flexWrap:'wrap',gap:12,background:'#1e293b',border:'1px solid #334155',borderRadius:10,padding:'11px 16px',marginBottom:16,fontSize:'.78rem'}}>
+                  <div>📊 Rata-rata 24 Jam: <b style={{color:suhuColor(parseFloat(avgS))}}>{avgS}°C</b> | Humid: <b style={{color:'#60a5fa'}}>{avgH}%</b></div>
+                  <div>🔻 Terendah: <b style={{color:'#22c55e'}}>{minS}°C</b></div>
+                  <div>🔺 Tertinggi: <b style={{color:parseFloat(maxS)>SUHU_DANGER?'#ef4444':parseFloat(maxS)>SUHU_WARNING?'#f59e0b':'#38bdf8'}}>{maxS}°C</b></div>
+                  <div>📈 Fluktuasi Rentang: <b>{(maxS - minS).toFixed(1)}°C</b></div>
+                  <div style={{color:'#94a3b8'}}>Interval 15 Menit ({valid.length} data)</div>
+                </div>
+              )
+            })()}
+
+            {/* Grafik Suhu */}
             <div className="chart-box">
-              <h2>📈 Grafik Suhu Harian — 60 Data Terakhir</h2>
+              <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:12,flexWrap:'wrap',gap:8}}>
+                <h2 style={{margin:0}}>
+                  {chartRange === '24h' ? '📈 Grafik Suhu 24 Jam Terakhir' : '📈 Grafik Suhu Real-Time — 60 Data Terakhir'}
+                </h2>
+                <span style={{fontSize:'.73rem',color:'#94a3b8'}}>
+                  {chartRange === '24h' ? 'Format 24 Jam (Interval 15 Menit — 96 Titik Data)' : 'Pencatatan tiap 10 detik'}
+                </span>
+              </div>
               <canvas ref={dailySuhuRef} height={110} />
             </div>
 
-            {/* Grafik Harian — Kelembaban */}
+            {/* Grafik Kelembaban */}
             <div className="chart-box">
-              <h2>💧 Grafik Kelembaban Harian — 60 Data Terakhir</h2>
+              <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:12,flexWrap:'wrap',gap:8}}>
+                <h2 style={{margin:0}}>
+                  {chartRange === '24h' ? '💧 Grafik Kelembaban 24 Jam Terakhir' : '💧 Grafik Kelembaban Real-Time — 60 Data Terakhir'}
+                </h2>
+                <span style={{fontSize:'.73rem',color:'#94a3b8'}}>
+                  {chartRange === '24h' ? 'Format 24 Jam (Interval 15 Menit — 96 Titik Data)' : 'Pencatatan tiap 10 detik'}
+                </span>
+              </div>
               <canvas ref={dailyHumidRef} height={90} />
             </div>
           </>

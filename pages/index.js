@@ -66,9 +66,15 @@ export default function Dashboard() {
 
   useEffect(() => {
     try {
-      const saved = localStorage.getItem('fatmawati_signatures_v3')
+      const saved = localStorage.getItem('fatmawati_signatures_v4')
       if (saved) {
-        setSignatures(JSON.parse(saved))
+        const parsed = JSON.parse(saved)
+        setSignatures({
+          ...defaultSignatures,
+          ...parsed,
+          pejabat1: { ...defaultSignatures.pejabat1, ...(parsed.pejabat1 || {}) },
+          pejabat2: { ...defaultSignatures.pejabat2, ...(parsed.pejabat2 || {}) },
+        })
       }
     } catch (_) {}
   }, [])
@@ -88,7 +94,7 @@ export default function Dashboard() {
         }
       }
       try {
-        localStorage.setItem('fatmawati_signatures_v3', JSON.stringify(updated))
+        localStorage.setItem('fatmawati_signatures_v4', JSON.stringify(updated))
       } catch (_) {}
       return updated
     })
@@ -97,7 +103,7 @@ export default function Dashboard() {
   const resetSignatures = () => {
     setSignatures(defaultSignatures)
     try {
-      localStorage.setItem('fatmawati_signatures_v3', JSON.stringify(defaultSignatures))
+      localStorage.setItem('fatmawati_signatures_v4', JSON.stringify(defaultSignatures))
     } catch (_) {}
   }
 
@@ -506,10 +512,10 @@ export default function Dashboard() {
 
         .print-header, .print-summary-strip, .print-signature{display:none}
 
-        /* ── 1-PAGE EXACT A4 PRINT LAYOUT ── */
+        /* ── 1-PAGE PROPORTIONAL A4 PRINT LAYOUT ── */
         @page {
           size: A4 portrait;
-          margin: 6mm 8mm;
+          margin: 10mm 12mm 10mm 12mm;
         }
 
         @media print{
@@ -517,36 +523,40 @@ export default function Dashboard() {
           .header, .no-print, .status-pill, .tabs, .print-btn, .nav-btn, footer, .chart-box, .alert, .legend, .cards, .sig-editor, .sig-config-btn, .web-sig-preview{display:none!important}
           .content{padding:0!important;max-width:100%!important;margin:0!important}
 
-          /* Kop Surat Ringkas & Bersih (1 Halaman Pas) */
-          .print-header{display:block!important;text-align:center;border-bottom:1.5px solid #000;padding-bottom:3px;margin-bottom:4px}
-          .print-kop-title{font-size:11pt;font-weight:800;color:#000;letter-spacing:.3px;margin:0}
-          .print-kop-sub{font-size:9.5pt;font-weight:700;color:#0f172a;margin:1px 0}
-          .print-kop-meta{display:flex!important;justify-content:space-between;font-size:7.2pt;color:#334155;margin-top:2px;font-weight:600}
+          /* Kop Surat Resmi & Proposional */
+          .print-header{display:block!important;text-align:center;border-bottom:2px solid #000;padding-bottom:5px;margin-bottom:6px}
+          .print-kop-title{font-size:12.5pt;font-weight:800;color:#000;letter-spacing:.5px;margin:0}
+          .print-kop-sub{font-size:10pt;font-weight:700;color:#0f172a;margin:2px 0 3px}
+          .print-kop-meta{display:flex!important;justify-content:space-between;font-size:7.8pt;color:#1e293b;margin-top:3px;font-weight:600}
 
-          /* Strip Ringkasan 1 Baris */
-          .print-summary-strip{display:flex!important;justify-content:space-around;background:#f8fafc!important;border:1px solid #94a3b8;border-radius:3px;padding:2.5px 6px;font-size:7.2pt;color:#000;margin-bottom:5px}
+          /* Strip Ringkasan 1 Baris Proposional */
+          .print-summary-strip{display:flex!important;justify-content:space-around;background:#f8fafc!important;border:1px solid #94a3b8;border-radius:4px;padding:4px 8px;font-size:7.8pt;color:#000;margin-bottom:7px}
           .print-summary-strip span b{color:#0f172a}
 
-          /* Tabel Cetak Sangat Rapi & Ringkas */
-          .table-box{background:transparent!important;border:none!important;padding:0!important;margin-bottom:4px!important}
+          /* Tabel Cetak Proposional & Rapi */
+          .table-box{background:transparent!important;border:none!important;padding:0!important;margin-bottom:6px!important}
           .table-box h2{display:none!important}
           .table-wrap{overflow:visible!important}
-          table{width:100%!important;border-collapse:collapse!important;font-size:7.2pt!important;line-height:1.15!important;page-break-inside:avoid!important}
-          thead th{background:#e2e8f0!important;color:#000!important;border:1px solid #475569!important;padding:2px 2px!important;font-weight:700!important;font-size:6.8pt!important}
-          tbody td{border:1px solid #94a3b8!important;padding:1.6px 2px!important;color:#000!important;text-align:center!important;font-size:7.1pt!important}
+          table{width:100%!important;border-collapse:collapse!important;font-size:7.8pt!important;line-height:1.25!important;page-break-inside:avoid!important}
+          thead th{background:#e2e8f0!important;color:#000!important;border:1px solid #475569!important;padding:3.5px 3px!important;font-weight:700!important;font-size:7.4pt!important}
+          tbody td{border:1px solid #94a3b8!important;padding:3px 3px!important;color:#000!important;text-align:center!important;font-size:7.8pt!important}
           tbody tr:nth-child(even){background:#f8fafc!important}
-          .td-date{font-weight:700!important;color:#000!important;text-align:left!important;padding-left:4px!important}
+          .td-date{font-weight:700!important;color:#000!important;text-align:left!important;padding-left:6px!important}
           .suhu-val{color:#000!important;font-weight:700!important}
           .humid-val{color:#000!important;font-weight:600!important}
           .td-nodata{color:#64748b!important}
 
-          /* Tanda Tangan Cetak */
-          .print-signature{display:block!important;margin-top:6px!important;font-size:7.5pt!important;color:#000;page-break-inside:avoid!important}
-          .sig-row{display:flex!important;justify-content:space-around!important}
-          .signature-box{text-align:center;width:240px}
-          .signature-space{height:36px!important}
-          .sig-name{font-size:8.2pt!important;font-weight:700!important;color:#000!important;margin-bottom:1px!important}
-          .sig-nip{font-size:7.2pt!important;color:#334155!important}
+          /* Tanda Tangan Cetak: Sejajar Presisi & Ruang TTD Diperbesar */
+          .print-signature{display:block!important;margin-top:14px!important;font-size:8pt!important;color:#000;page-break-inside:avoid!important}
+          .sig-row{display:flex!important;justify-content:space-around!important;align-items:flex-start!important}
+          .signature-box{text-align:center;width:270px;display:flex!important;flex-direction:column!important}
+          .sig-header-box{min-height:36px!important;display:flex!important;flex-direction:column!important;justify-content:flex-end!important}
+          .sig-status{font-size:8pt!important;min-height:15px!important;line-height:15px!important;margin-bottom:2px!important;color:#000!important}
+          .sig-jabatan{font-size:8.5pt!important;font-weight:700!important;line-height:1.2!important;color:#000!important}
+          .signature-space{height:65px!important}
+          .sig-footer-box{display:flex!important;flex-direction:column!important;align-items:center!important}
+          .sig-name{font-size:8.6pt!important;font-weight:700!important;color:#000!important;margin-bottom:2px!important;white-space:nowrap!important}
+          .sig-nip{font-size:7.5pt!important;color:#334155!important}
         }
       `}</style>
 
@@ -912,38 +922,54 @@ export default function Dashboard() {
                   </div>
                 </div>
 
-                {/* Bagian Tanda Tangan Cetak (1 Halaman Pas) */}
+                {/* Bagian Tanda Tangan Cetak (1 Halaman Pas & Proposional) */}
                 <div className="print-signature">
                   {signatures.showPelaksana && (
-                    <div className="sig-row" style={{marginBottom:'10px'}}>
+                    <div className="sig-row" style={{marginBottom:'14px'}}>
                       <div className="signature-box">
-                        <p>{signatures.pelaksana1.label},</p>
+                        <div className="sig-header-box">
+                          <div className="sig-status">{signatures.pelaksana1.label}</div>
+                        </div>
                         <div className="signature-space"></div>
-                        <p className="sig-name"><u><b>{signatures.pelaksana1.nama}</b></u></p>
-                        <p className="sig-nip">{signatures.pelaksana1.nip}</p>
+                        <div className="sig-footer-box">
+                          <p className="sig-name"><u><b>{signatures.pelaksana1.nama}</b></u></p>
+                          <p className="sig-nip">{signatures.pelaksana1.nip}</p>
+                        </div>
                       </div>
                       <div className="signature-box">
-                        <p>{signatures.pelaksana2.label},</p>
+                        <div className="sig-header-box">
+                          <div className="sig-status">{signatures.pelaksana2.label}</div>
+                        </div>
                         <div className="signature-space"></div>
-                        <p className="sig-name"><u><b>{signatures.pelaksana2.nama}</b></u></p>
-                        <p className="sig-nip">{signatures.pelaksana2.nip}</p>
+                        <div className="sig-footer-box">
+                          <p className="sig-name"><u><b>{signatures.pelaksana2.nama}</b></u></p>
+                          <p className="sig-nip">{signatures.pelaksana2.nip}</p>
+                        </div>
                       </div>
                     </div>
                   )}
                   <div className="sig-row">
                     <div className="signature-box">
-                      <p>{signatures.pejabat1.status}</p>
-                      <p><b>{signatures.pejabat1.jabatan}</b></p>
+                      <div className="sig-header-box">
+                        <div className="sig-status">{signatures.pejabat1.status || '\u00A0'}</div>
+                        <div className="sig-jabatan"><b>{signatures.pejabat1.jabatan}</b></div>
+                      </div>
                       <div className="signature-space"></div>
-                      <p className="sig-name"><u><b>{signatures.pejabat1.nama}</b></u></p>
-                      <p className="sig-nip">{signatures.pejabat1.nip}</p>
+                      <div className="sig-footer-box">
+                        <p className="sig-name"><u><b>{signatures.pejabat1.nama}</b></u></p>
+                        <p className="sig-nip">{signatures.pejabat1.nip}</p>
+                      </div>
                     </div>
                     <div className="signature-box">
-                      <p>{signatures.pejabat2.status}</p>
-                      <p><b>{signatures.pejabat2.jabatan}</b></p>
+                      <div className="sig-header-box">
+                        <div className="sig-status">{signatures.pejabat2.status || '\u00A0'}</div>
+                        <div className="sig-jabatan"><b>{signatures.pejabat2.jabatan}</b></div>
+                      </div>
                       <div className="signature-space"></div>
-                      <p className="sig-name"><u><b>{signatures.pejabat2.nama}</b></u></p>
-                      <p className="sig-nip">{signatures.pejabat2.nip}</p>
+                      <div className="sig-footer-box">
+                        <p className="sig-name"><u><b>{signatures.pejabat2.nama}</b></u></p>
+                        <p className="sig-nip">{signatures.pejabat2.nip}</p>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -957,17 +983,21 @@ export default function Dashboard() {
                     </button>
                   </h3>
                   <div style={{display:'flex',justifyContent:'space-around',flexWrap:'wrap',gap:20,textAlign:'center',paddingTop:10}}>
-                    <div>
-                      <p style={{fontSize:'.78rem',color:'#94a3b8'}}>{signatures.pejabat1.status}</p>
-                      <p style={{fontSize:'.82rem',fontWeight:600,color:'#f8fafc'}}>{signatures.pejabat1.jabatan}</p>
-                      <div style={{height:50,borderBottom:'1px dashed #475569',margin:'10px auto 6px',width:220}}></div>
+                    <div style={{width:260,display:'flex',flexDirection:'column'}}>
+                      <div style={{minHeight:36,display:'flex',flexDirection:'column',justifyContent:'flex-end'}}>
+                        <p style={{fontSize:'.78rem',color:'#94a3b8'}}>{signatures.pejabat1.status || '\u00A0'}</p>
+                        <p style={{fontSize:'.82rem',fontWeight:600,color:'#f8fafc'}}>{signatures.pejabat1.jabatan}</p>
+                      </div>
+                      <div style={{height:65,borderBottom:'1px dashed #475569',margin:'10px auto 8px',width:220}}></div>
                       <p style={{fontSize:'.85rem',fontWeight:700,color:'#38bdf8'}}>{signatures.pejabat1.nama}</p>
                       <p style={{fontSize:'.75rem',color:'#94a3b8'}}>{signatures.pejabat1.nip}</p>
                     </div>
-                    <div>
-                      <p style={{fontSize:'.78rem',color:'#94a3b8'}}>{signatures.pejabat2.status}</p>
-                      <p style={{fontSize:'.82rem',fontWeight:600,color:'#f8fafc'}}>{signatures.pejabat2.jabatan}</p>
-                      <div style={{height:50,borderBottom:'1px dashed #475569',margin:'10px auto 6px',width:220}}></div>
+                    <div style={{width:260,display:'flex',flexDirection:'column'}}>
+                      <div style={{minHeight:36,display:'flex',flexDirection:'column',justifyContent:'flex-end'}}>
+                        <p style={{fontSize:'.78rem',color:'#94a3b8'}}>{signatures.pejabat2.status || '\u00A0'}</p>
+                        <p style={{fontSize:'.82rem',fontWeight:600,color:'#f8fafc'}}>{signatures.pejabat2.jabatan}</p>
+                      </div>
+                      <div style={{height:65,borderBottom:'1px dashed #475569',margin:'10px auto 8px',width:220}}></div>
                       <p style={{fontSize:'.85rem',fontWeight:700,color:'#38bdf8'}}>{signatures.pejabat2.nama}</p>
                       <p style={{fontSize:'.75rem',color:'#94a3b8'}}>{signatures.pejabat2.nip}</p>
                     </div>

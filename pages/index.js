@@ -53,6 +53,54 @@ export default function Dashboard() {
   const monthSuhuObj  = useRef(null)
   const monthHumidObj = useRef(null)
 
+  // ── Signature state (editable & saved to localStorage) ───────────────────
+  const [showSigModal, setShowSigModal] = useState(false)
+  const defaultSignatures = {
+    showPelaksana: false,
+    pelaksana1: { label: 'Pelaksana / Teknisi TI', nama: 'Satrio Abdi Negoro', nip: 'NIP. -' },
+    pelaksana2: { label: 'Petugas Monitoring', nama: 'Daffa Ahmadhan Khusumah', nip: 'NIP. -' },
+    pejabat1: { status: 'Mengetahui,', jabatan: 'Kepala Instalasi SIMRS', nama: 'dr. Dany Kurniadi Ramdhan, Sp. B.S', nip: 'NIP. -' },
+    pejabat2: { status: 'Mengetahui,', jabatan: 'Waka Sub Perangkat & Jaringan TI', nama: 'Dzakiah Nur Fadhilah, S.Kom', nip: 'NIP. -' },
+  }
+  const [signatures, setSignatures] = useState(defaultSignatures)
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem('fatmawati_signatures_v3')
+      if (saved) {
+        setSignatures(JSON.parse(saved))
+      }
+    } catch (_) {}
+  }, [])
+
+  const updateSig = (category, field, val) => {
+    setSignatures(prev => {
+      let updated
+      if (field === null) {
+        updated = { ...prev, [category]: val }
+      } else {
+        updated = {
+          ...prev,
+          [category]: {
+            ...prev[category],
+            [field]: val,
+          },
+        }
+      }
+      try {
+        localStorage.setItem('fatmawati_signatures_v3', JSON.stringify(updated))
+      } catch (_) {}
+      return updated
+    })
+  }
+
+  const resetSignatures = () => {
+    setSignatures(defaultSignatures)
+    try {
+      localStorage.setItem('fatmawati_signatures_v3', JSON.stringify(defaultSignatures))
+    } catch (_) {}
+  }
+
   // ═══════════════════════════════════════════════════════════════════════════
   // CLEANUP CHARTS ON TAB SWITCH
   // ═══════════════════════════════════════════════════════════════════════════
@@ -435,45 +483,70 @@ export default function Dashboard() {
 
         footer{text-align:center;font-size:.7rem;color:#475569;padding:14px}
 
-        .print-header, .print-meta, .print-signature{display:none}
+        /* ── Signature Editor & Web Preview ── */
+        .sig-config-btn{padding:5px 14px;border:1px solid #0284c7;background:rgba(14,165,233,.12);color:#38bdf8;border-radius:6px;cursor:pointer;font-size:.82rem;font-weight:500;transition:all .2s;display:inline-flex;align-items:center;gap:5px}
+        .sig-config-btn:hover{background:#0284c7;color:#fff}
+        .sig-editor{background:#1e293b;border:1px solid #0284c7;border-radius:10px;padding:16px;margin-bottom:18px}
+        .sig-editor-title{font-size:.9rem;font-weight:700;color:#38bdf8;margin-bottom:12px;display:flex;align-items:center;justify-content:space-between}
+        .sig-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px;margin-bottom:12px}
+        .sig-card{background:#0f172a;border:1px solid #334155;border-radius:8px;padding:12px}
+        .sig-card h4{font-size:.78rem;color:#cbd5e1;margin-bottom:8px;font-weight:600}
+        .sig-field{margin-bottom:8px}
+        .sig-field label{display:block;font-size:.7rem;color:#94a3b8;margin-bottom:2px}
+        .sig-field input{width:100%;padding:6px 10px;background:#1e293b;border:1px solid #334155;border-radius:5px;color:#f8fafc;font-size:.8rem}
+        .sig-field input:focus{outline:none;border-color:#38bdf8}
+        .sig-actions{display:flex;gap:10px;justify-content:flex-end;align-items:center;margin-top:10px;flex-wrap:wrap}
+        .btn-sec{padding:5px 12px;background:#334155;border:1px solid #475569;color:#e2e8f0;border-radius:6px;cursor:pointer;font-size:.8rem}
+        .btn-sec:hover{background:#475569}
+        .btn-pri{padding:5px 14px;background:#0ea5e9;border:none;color:#fff;border-radius:6px;cursor:pointer;font-size:.8rem}
+        .btn-pri:hover{background:#0284c7}
+
+        .web-sig-preview{background:#1e293b;border:1px dashed #334155;border-radius:10px;padding:16px;margin-top:16px}
+        .web-sig-preview h3{font-size:.78rem;color:#94a3b8;text-transform:uppercase;letter-spacing:1px;margin-bottom:12px;display:flex;justify-content:space-between}
+
+        .print-header, .print-summary-strip, .print-signature{display:none}
+
+        /* ── 1-PAGE EXACT A4 PRINT LAYOUT ── */
+        @page {
+          size: A4 portrait;
+          margin: 6mm 8mm;
+        }
 
         @media print{
-          body{background:#fff!important;color:#000!important;font-size:9.5pt!important}
-          .header, .no-print, .status-pill, .tabs, .print-btn, .nav-btn, footer, .chart-box, .alert, .legend{display:none!important}
+          html, body{background:#fff!important;color:#000!important;font-size:8pt!important;height:auto!important;overflow:visible!important}
+          .header, .no-print, .status-pill, .tabs, .print-btn, .nav-btn, footer, .chart-box, .alert, .legend, .cards, .sig-editor, .sig-config-btn, .web-sig-preview{display:none!important}
           .content{padding:0!important;max-width:100%!important;margin:0!important}
 
-          /* Kop Surat Resmi Cetak */
-          .print-header{display:block!important;text-align:center;border-bottom:2px solid #000;padding-bottom:6px;margin-bottom:10px}
-          .print-header h2{font-size:13pt;font-weight:700;color:#000;margin:0}
-          .print-header h3{font-size:11pt;font-weight:600;color:#1e293b;margin:2px 0}
-          .print-header p{font-size:8.5pt;color:#475569;margin:2px 0}
-          
-          .print-meta{display:flex!important;justify-content:space-between;font-size:8pt;margin-bottom:10px;color:#1e293b;font-weight:600}
+          /* Kop Surat Ringkas & Bersih (1 Halaman Pas) */
+          .print-header{display:block!important;text-align:center;border-bottom:1.5px solid #000;padding-bottom:3px;margin-bottom:4px}
+          .print-kop-title{font-size:11pt;font-weight:800;color:#000;letter-spacing:.3px;margin:0}
+          .print-kop-sub{font-size:9.5pt;font-weight:700;color:#0f172a;margin:1px 0}
+          .print-kop-meta{display:flex!important;justify-content:space-between;font-size:7.2pt;color:#334155;margin-top:2px;font-weight:600}
 
-          /* Kartu Ringkasan Cetak */
-          .cards{display:grid!important;grid-template-columns:repeat(4,1fr)!important;gap:6px!important;margin-bottom:12px!important}
-          .card{background:#f8fafc!important;border:1px solid #64748b!important;border-radius:4px!important;padding:6px 8px!important;box-shadow:none!important}
-          .card .lbl{font-size:7pt!important;color:#334155!important;font-weight:600;margin-bottom:2px!important}
-          .card .val{font-size:12pt!important;font-weight:700!important;color:#000!important}
-          .card .unt{font-size:7pt!important;color:#64748b!important}
+          /* Strip Ringkasan 1 Baris */
+          .print-summary-strip{display:flex!important;justify-content:space-around;background:#f8fafc!important;border:1px solid #94a3b8;border-radius:3px;padding:2.5px 6px;font-size:7.2pt;color:#000;margin-bottom:5px}
+          .print-summary-strip span b{color:#0f172a}
 
-          /* Tabel Cetak */
-          .table-box{background:transparent!important;border:none!important;padding:0!important;margin-bottom:10px!important}
+          /* Tabel Cetak Sangat Rapi & Ringkas */
+          .table-box{background:transparent!important;border:none!important;padding:0!important;margin-bottom:4px!important}
           .table-box h2{display:none!important}
           .table-wrap{overflow:visible!important}
-          table{width:100%!important;border-collapse:collapse!important;font-size:8pt!important}
-          thead th{background:#e2e8f0!important;color:#000!important;border:1px solid #475569!important;padding:4px 3px!important;font-weight:700!important;font-size:7.5pt!important}
-          tbody td{border:1px solid #94a3b8!important;padding:3px 3px!important;color:#000!important;text-align:center!important;font-size:7.5pt!important}
+          table{width:100%!important;border-collapse:collapse!important;font-size:7.2pt!important;line-height:1.15!important;page-break-inside:avoid!important}
+          thead th{background:#e2e8f0!important;color:#000!important;border:1px solid #475569!important;padding:2px 2px!important;font-weight:700!important;font-size:6.8pt!important}
+          tbody td{border:1px solid #94a3b8!important;padding:1.6px 2px!important;color:#000!important;text-align:center!important;font-size:7.1pt!important}
           tbody tr:nth-child(even){background:#f8fafc!important}
-          .td-date{font-weight:700!important;color:#000!important;text-align:left!important;padding-left:6px!important}
+          .td-date{font-weight:700!important;color:#000!important;text-align:left!important;padding-left:4px!important}
           .suhu-val{color:#000!important;font-weight:700!important}
           .humid-val{color:#000!important;font-weight:600!important}
           .td-nodata{color:#64748b!important}
 
-          /* Tanda Tangan */
-          .print-signature{display:flex!important;justify-content:space-between;margin-top:20px;font-size:8pt;color:#000;page-break-inside:avoid}
-          .signature-box{text-align:center;width:200px}
-          .signature-space{height:45px}
+          /* Tanda Tangan Cetak */
+          .print-signature{display:block!important;margin-top:6px!important;font-size:7.5pt!important;color:#000;page-break-inside:avoid!important}
+          .sig-row{display:flex!important;justify-content:space-around!important}
+          .signature-box{text-align:center;width:240px}
+          .signature-space{height:36px!important}
+          .sig-name{font-size:8.2pt!important;font-weight:700!important;color:#000!important;margin-bottom:1px!important}
+          .sig-nip{font-size:7.2pt!important;color:#334155!important}
         }
       `}</style>
 
@@ -612,16 +685,36 @@ export default function Dashboard() {
         {tab === 'monthly' && (
           <>
             {/* Header Resmi untuk Cetak / PDF */}
+            {/* Header Resmi untuk Cetak / PDF (Kop Ringkas 1 Halaman Pas) */}
             <div className="print-header">
-              <h2>RUMAH SAKIT UMUM PUSAT FATMAWATI</h2>
-              <h3>LAPORAN MONITORING SUHU &amp; KELEMBABAN RUANG SERVER</h3>
-              <p>Instalasi Teknologi Informasi &amp; Komunikasi | Periode: {monthly?.nama_bulan}</p>
+              <h2 className="print-kop-title">RUMAH SAKIT UMUM PUSAT FATMAWATI</h2>
+              <h3 className="print-kop-sub">LAPORAN MONITORING SUHU &amp; KELEMBABAN RUANG SERVER</h3>
+              <div className="print-kop-meta">
+                <span>Instalasi SIMRS / TI</span>
+                <span>Periode: {monthly?.nama_bulan || `${BULAN_ID[selMonth-1]} ${selYear}`}</span>
+                <span>Jadwal: 🌅 08:00 WIB &amp; 🌙 20:00 WIB</span>
+              </div>
             </div>
 
-            <div className="print-meta">
-              <span>Jadwal Pencatatan: 🌅 Pagi (08:00 WIB) &amp; 🌙 Malam (20:00 WIB)</span>
-              <span>Waktu Cetak: {new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' })} WIB</span>
-            </div>
+            {/* Strip Ringkasan 1 Baris Khusus Cetak */}
+            {monthly?.data && (
+              <div className="print-summary-strip">
+                {(() => {
+                  const rows = monthly.data.filter(r => r.has_data)
+                  const all  = [...rows.map(r=>r.suhu_pagi),...rows.map(r=>r.suhu_malam)].filter(v=>v!==null)
+                  const avg  = a => a.length?(a.reduce((x,y)=>x+y,0)/a.length).toFixed(1):'-'
+                  return (
+                    <>
+                      <span>Periode: <b>{monthly.nama_bulan}</b></span>
+                      <span>Hari Tercatat: <b>{rows.length}/{monthly.total_hari} Hari</b></span>
+                      <span>Rata-rata Suhu: <b>{avg(all)}°C</b></span>
+                      <span>Maks: <b>{all.length?Math.max(...all).toFixed(1):'-'}°C</b></span>
+                      <span>Min: <b>{all.length?Math.min(...all).toFixed(1):'-'}°C</b></span>
+                    </>
+                  )
+                })()}
+              </div>
+            )}
 
             {/* Navigasi Web (disembunyikan saat cetak) */}
             <div className="month-nav no-print">
@@ -631,8 +724,106 @@ export default function Dashboard() {
                 disabled={selYear===now.getFullYear()&&selMonth>=now.getMonth()+1}>
                 Next →
               </button>
+              <button className="sig-config-btn" onClick={()=>setShowSigModal(v => !v)}>
+                {showSigModal ? '✖ Tutup Pengaturan' : '✍️ Atur Tanda Tangan & NIP'}
+              </button>
               <button className="print-btn" onClick={()=>window.print()}>🖨️ Print / PDF</button>
             </div>
+
+            {/* Panel Pengaturan Tanda Tangan & NIP (Bisa diedit & tersimpan) */}
+            {showSigModal && (
+              <div className="sig-editor no-print">
+                <div className="sig-editor-title">
+                  <span>✍️ Pengaturan Pejabat Penandatangan &amp; NIP</span>
+                  <button className="btn-sec" onClick={()=>setShowSigModal(false)} style={{padding:'2px 8px',fontSize:'.75rem'}}>Tutup</button>
+                </div>
+                <div className="sig-grid">
+                  <div className="sig-card">
+                    <h4>Pejabat 1 (Kiri)</h4>
+                    <div className="sig-field">
+                      <label>Status / Teks:</label>
+                      <input value={signatures.pejabat1.status} onChange={e=>updateSig('pejabat1','status',e.target.value)} placeholder="Mengetahui," />
+                    </div>
+                    <div className="sig-field">
+                      <label>Jabatan:</label>
+                      <input value={signatures.pejabat1.jabatan} onChange={e=>updateSig('pejabat1','jabatan',e.target.value)} placeholder="Kepala Instalasi SIMRS" />
+                    </div>
+                    <div className="sig-field">
+                      <label>Nama Pejabat:</label>
+                      <input value={signatures.pejabat1.nama} onChange={e=>updateSig('pejabat1','nama',e.target.value)} placeholder="dr. Dany Kurniadi Ramdhan, Sp. B.S" />
+                    </div>
+                    <div className="sig-field">
+                      <label>NIP:</label>
+                      <input value={signatures.pejabat1.nip} onChange={e=>updateSig('pejabat1','nip',e.target.value)} placeholder="NIP. ..." />
+                    </div>
+                  </div>
+
+                  <div className="sig-card">
+                    <h4>Pejabat 2 (Kanan)</h4>
+                    <div className="sig-field">
+                      <label>Status / Teks:</label>
+                      <input value={signatures.pejabat2.status} onChange={e=>updateSig('pejabat2','status',e.target.value)} placeholder="Mengetahui," />
+                    </div>
+                    <div className="sig-field">
+                      <label>Jabatan:</label>
+                      <input value={signatures.pejabat2.jabatan} onChange={e=>updateSig('pejabat2','jabatan',e.target.value)} placeholder="Waka Sub Perangkat & Jaringan TI" />
+                    </div>
+                    <div className="sig-field">
+                      <label>Nama Pejabat:</label>
+                      <input value={signatures.pejabat2.nama} onChange={e=>updateSig('pejabat2','nama',e.target.value)} placeholder="Dzakiah Nur Fadhilah, S.Kom" />
+                    </div>
+                    <div className="sig-field">
+                      <label>NIP:</label>
+                      <input value={signatures.pejabat2.nip} onChange={e=>updateSig('pejabat2','nip',e.target.value)} placeholder="NIP. ..." />
+                    </div>
+                  </div>
+
+                  {signatures.showPelaksana && (
+                    <>
+                      <div className="sig-card">
+                        <h4>Pelaksana 1</h4>
+                        <div className="sig-field">
+                          <label>Jabatan / Label:</label>
+                          <input value={signatures.pelaksana1.label} onChange={e=>updateSig('pelaksana1','label',e.target.value)} />
+                        </div>
+                        <div className="sig-field">
+                          <label>Nama:</label>
+                          <input value={signatures.pelaksana1.nama} onChange={e=>updateSig('pelaksana1','nama',e.target.value)} />
+                        </div>
+                        <div className="sig-field">
+                          <label>NIP:</label>
+                          <input value={signatures.pelaksana1.nip} onChange={e=>updateSig('pelaksana1','nip',e.target.value)} />
+                        </div>
+                      </div>
+                      <div className="sig-card">
+                        <h4>Pelaksana 2</h4>
+                        <div className="sig-field">
+                          <label>Jabatan / Label:</label>
+                          <input value={signatures.pelaksana2.label} onChange={e=>updateSig('pelaksana2','label',e.target.value)} />
+                        </div>
+                        <div className="sig-field">
+                          <label>Nama:</label>
+                          <input value={signatures.pelaksana2.nama} onChange={e=>updateSig('pelaksana2','nama',e.target.value)} />
+                        </div>
+                        <div className="sig-field">
+                          <label>NIP:</label>
+                          <input value={signatures.pelaksana2.nip} onChange={e=>updateSig('pelaksana2','nip',e.target.value)} />
+                        </div>
+                      </div>
+                    </>
+                  )}
+                </div>
+
+                <div className="sig-actions">
+                  <label style={{display:'flex',alignItems:'center',gap:6,fontSize:'.78rem',color:'#cbd5e1',cursor:'pointer',marginRight:'auto'}}>
+                    <input type="checkbox" checked={signatures.showPelaksana} onChange={e=>updateSig('showPelaksana',null,e.target.checked)} />
+                    Tampilkan baris pelaksana teknis (4 tanda tangan)
+                  </label>
+                  <button className="btn-sec" onClick={resetSignatures}>Reset Default</button>
+                  <button className="btn-pri" onClick={()=>setShowSigModal(false)}>✓ Simpan &amp; Terapkan</button>
+                </div>
+              </div>
+            )}
 
             {loadingM ? (
               <div style={{textAlign:'center',padding:'40px',color:'#94a3b8'}}>⏳ Memuat laporan...</div>
@@ -721,20 +912,65 @@ export default function Dashboard() {
                   </div>
                 </div>
 
-                {/* Bagian Tanda Tangan Cetak */}
+                {/* Bagian Tanda Tangan Cetak (1 Halaman Pas) */}
                 <div className="print-signature">
-                  <div className="signature-box">
-                    <p>Petugas Monitoring,</p>
-                    <div className="signature-space"></div>
-                    <p><b>( .................................................. )</b></p>
-                    <p style={{fontSize:'7.5pt',color:'#475569'}}>NIP / NIK</p>
+                  {signatures.showPelaksana && (
+                    <div className="sig-row" style={{marginBottom:'10px'}}>
+                      <div className="signature-box">
+                        <p>{signatures.pelaksana1.label},</p>
+                        <div className="signature-space"></div>
+                        <p className="sig-name"><u><b>{signatures.pelaksana1.nama}</b></u></p>
+                        <p className="sig-nip">{signatures.pelaksana1.nip}</p>
+                      </div>
+                      <div className="signature-box">
+                        <p>{signatures.pelaksana2.label},</p>
+                        <div className="signature-space"></div>
+                        <p className="sig-name"><u><b>{signatures.pelaksana2.nama}</b></u></p>
+                        <p className="sig-nip">{signatures.pelaksana2.nip}</p>
+                      </div>
+                    </div>
+                  )}
+                  <div className="sig-row">
+                    <div className="signature-box">
+                      <p>{signatures.pejabat1.status}</p>
+                      <p><b>{signatures.pejabat1.jabatan}</b></p>
+                      <div className="signature-space"></div>
+                      <p className="sig-name"><u><b>{signatures.pejabat1.nama}</b></u></p>
+                      <p className="sig-nip">{signatures.pejabat1.nip}</p>
+                    </div>
+                    <div className="signature-box">
+                      <p>{signatures.pejabat2.status}</p>
+                      <p><b>{signatures.pejabat2.jabatan}</b></p>
+                      <div className="signature-space"></div>
+                      <p className="sig-name"><u><b>{signatures.pejabat2.nama}</b></u></p>
+                      <p className="sig-nip">{signatures.pejabat2.nip}</p>
+                    </div>
                   </div>
-                  <div className="signature-box">
-                    <p>Mengetahui,</p>
-                    <p><b>Penanggung Jawab Ruang Server</b></p>
-                    <div className="signature-space"></div>
-                    <p><b>( .................................................. )</b></p>
-                    <p style={{fontSize:'7.5pt',color:'#475569'}}>NIP / NIK</p>
+                </div>
+
+                {/* Preview Tanda Tangan di Tampilan Web */}
+                <div className="web-sig-preview no-print">
+                  <h3>
+                    <span>Pengesahan &amp; Tanda Tangan Laporan</span>
+                    <button className="sig-config-btn" onClick={()=>setShowSigModal(true)} style={{fontSize:'.75rem',padding:'2px 8px'}}>
+                      ✏️ Edit Tanda Tangan &amp; NIP
+                    </button>
+                  </h3>
+                  <div style={{display:'flex',justifyContent:'space-around',flexWrap:'wrap',gap:20,textAlign:'center',paddingTop:10}}>
+                    <div>
+                      <p style={{fontSize:'.78rem',color:'#94a3b8'}}>{signatures.pejabat1.status}</p>
+                      <p style={{fontSize:'.82rem',fontWeight:600,color:'#f8fafc'}}>{signatures.pejabat1.jabatan}</p>
+                      <div style={{height:50,borderBottom:'1px dashed #475569',margin:'10px auto 6px',width:220}}></div>
+                      <p style={{fontSize:'.85rem',fontWeight:700,color:'#38bdf8'}}>{signatures.pejabat1.nama}</p>
+                      <p style={{fontSize:'.75rem',color:'#94a3b8'}}>{signatures.pejabat1.nip}</p>
+                    </div>
+                    <div>
+                      <p style={{fontSize:'.78rem',color:'#94a3b8'}}>{signatures.pejabat2.status}</p>
+                      <p style={{fontSize:'.82rem',fontWeight:600,color:'#f8fafc'}}>{signatures.pejabat2.jabatan}</p>
+                      <div style={{height:50,borderBottom:'1px dashed #475569',margin:'10px auto 6px',width:220}}></div>
+                      <p style={{fontSize:'.85rem',fontWeight:700,color:'#38bdf8'}}>{signatures.pejabat2.nama}</p>
+                      <p style={{fontSize:'.75rem',color:'#94a3b8'}}>{signatures.pejabat2.nip}</p>
+                    </div>
                   </div>
                 </div>
               </>

@@ -43,10 +43,14 @@ export default function Dashboard() {
 
   // ── Monthly ──────────────────────────────────────────────────────────────
   const now = new Date()
-  const [selYear,  setSelYear]  = useState(now.getFullYear())
-  const [selMonth, setSelMonth] = useState(now.getMonth() + 1)
+  const currentYear = now.getFullYear()
+  const currentMonth = now.getMonth() + 1
+  const minYear = currentYear - 10
+  const [selYear,  setSelYear]  = useState(currentYear)
+  const [selMonth, setSelMonth] = useState(currentMonth)
   const [monthly,  setMonthly]  = useState(null)
   const [loadingM, setLoadingM] = useState(false)
+  const monthlyAbortRef = useRef(null)
   // Monthly chart refs
   const monthSuhuRef  = useRef(null)
   const monthHumidRef = useRef(null)
@@ -128,6 +132,11 @@ export default function Dashboard() {
     const poll = async () => {
       try {
         const r = await fetch('/api/latest')
+        if (!r.ok) {
+          setIsOnline(false)
+          setLatest(p => ({ ...p, status: 'Koneksi Terputus' }))
+          return
+        }
         const d = await r.json()
         if (d.suhu !== null && d.suhu !== undefined) {
           setLatest(d)
@@ -136,7 +145,10 @@ export default function Dashboard() {
           setLatest(p => ({ ...p, status: d.status || 'Belum ada data' }))
           setIsOnline(false)
         }
-      } catch { setIsOnline(false) }
+      } catch {
+        setIsOnline(false)
+        setLatest(p => ({ ...p, status: 'Menghubungkan...' }))
+      }
     }
     const iv = setInterval(poll, 5000)
     poll()
@@ -413,16 +425,40 @@ export default function Dashboard() {
   // MONTHLY
   // ═══════════════════════════════════════════════════════════════════════════
   const loadMonthly = useCallback(async (y, m) => {
+    if (monthlyAbortRef.current) {
+      try { monthlyAbortRef.current.abort() } catch (_) {}
+    }
+    const controller = new AbortController()
+    monthlyAbortRef.current = controller
+
     setLoadingM(true)
     try {
-      const r = await fetch(`/api/monthly?year=${y}&month=${m}`)
-      setMonthly(await r.json())
-    } catch { setMonthly(null) }
-    setLoadingM(false)
+      const r = await fetch(`/api/monthly?year=${y}&month=${m}`, { signal: controller.signal })
+      if (!r.ok) {
+        setMonthly(null)
+        return
+      }
+      const d = await r.json()
+      setMonthly(d)
+    } catch (err) {
+      if (err.name !== 'AbortError') {
+        setMonthly(null)
+      }
+    } finally {
+      if (!controller.signal.aborted) {
+        setLoadingM(false)
+      }
+    }
   }, [])
 
   useEffect(() => {
-    if (tab === 'monthly') loadMonthly(selYear, selMonth)
+    if (tab === 'monthly') {
+      loadMonthly(selYear, selMonth)
+    } else {
+      if (monthlyAbortRef.current) {
+        try { monthlyAbortRef.current.abort() } catch (_) {}
+      }
+    }
   }, [tab, selYear, selMonth, loadMonthly])
 
   // ── Monthly charts (suhu & humid per hari) ───────────────────────────────
@@ -495,15 +531,27 @@ export default function Dashboard() {
     return () => { isMounted = false }
   }, [tab, monthly, selYear, selMonth])
 
+  const isAtMinMonth = selYear < minYear || (selYear === minYear && selMonth === 1)
+  const isAtMaxMonth = selYear > currentYear || (selYear === currentYear && selMonth >= currentMonth)
+
   const prevMonth = () => {
-    if (selMonth === 1) { setSelYear(y => y-1); setSelMonth(12) }
-    else setSelMonth(m => m-1)
+    if (isAtMinMonth || loadingM) return
+    if (selMonth === 1) {
+      setSelYear(y => Math.max(minYear, y - 1))
+      setSelMonth(12)
+    } else {
+      setSelMonth(m => m - 1)
+    }
   }
+
   const nextMonth = () => {
-    const n = new Date()
-    if (selYear === n.getFullYear() && selMonth >= n.getMonth()+1) return
-    if (selMonth === 12) { setSelYear(y => y+1); setSelMonth(1) }
-    else setSelMonth(m => m+1)
+    if (isAtMaxMonth || loadingM) return
+    if (selMonth === 12) {
+      setSelYear(y => y + 1)
+      setSelMonth(1)
+    } else {
+      setSelMonth(m => m + 1)
+    }
   }
 
   const dotColor = isOnline === null ? '#f59e0b' : isOnline ? '#22c55e' : '#ef4444'
@@ -887,10 +935,21 @@ export default function Dashboard() {
 
             {/* Navigasi Web (disembunyikan saat cetak) */}
             <div className="month-nav no-print">
-              <button className="nav-btn" onClick={prevMonth}>← Prev</button>
+              <button
+                className="nav-btn"
+                onClick={prevMonth}
+                disabled={isAtMinMonth || loadingM}
+                title={isAtMinMonth ? `Batas maksimal riwayat adalah 10 tahun (${minYear})` : 'Bulan Sebelumnya'}
+              >
+                ← Prev
+              </button>
               <span className="title">📋 {BULAN_ID[selMonth-1]} {selYear}</span>
-              <button className="nav-btn" onClick={nextMonth}
-                disabled={selYear===now.getFullYear()&&selMonth>=now.getMonth()+1}>
+              <button
+                className="nav-btn"
+                onClick={nextMonth}
+                disabled={isAtMaxMonth || loadingM}
+                title={isAtMaxMonth ? 'Bulan masa depan tidak tersedia' : 'Bulan Berikutnya'}
+              >
                 Next →
               </button>
               <button className="sig-config-btn" onClick={()=>setShowSigModal(v => !v)}>
@@ -898,6 +957,13 @@ export default function Dashboard() {
               </button>
               <button className="print-btn" onClick={()=>window.print()}>🖨️ Print / PDF</button>
             </div>
+
+            {/* Indikator Batas 10 Tahun */}
+            {isAtMinMonth && (
+              <div className="no-print" style={{fontSize:'.75rem',color:'#f59e0b',marginBottom:12,padding:'6px 12px',background:'rgba(245,158,11,0.1)',borderRadius:6,border:'1px solid rgba(245,158,11,0.2)'}}>
+                ℹ️ Batas riwayat laporan bulanan maksimal 10 tahun ke belakang ({minYear} – {currentYear}).
+              </div>
+            )}
 
             {/* Panel Pengaturan Tanda Tangan & NIP (Bisa diedit & tersimpan) */}
             {showSigModal && (

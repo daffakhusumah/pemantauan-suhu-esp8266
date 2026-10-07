@@ -41,3 +41,31 @@ CREATE POLICY "Allow service role insert"
 SELECT table_name FROM information_schema.tables
 WHERE table_schema = 'public' AND table_name = 'sensor_readings';
 -- Harus return 1 baris: sensor_readings
+
+-- ============================================================
+-- 7. TABEL LAPORAN HARIAN (PERMANEN 30 TAHUN)
+-- ============================================================
+CREATE TABLE IF NOT EXISTS laporan_harian (
+  id            BIGSERIAL PRIMARY KEY,
+  tanggal       DATE NOT NULL UNIQUE,
+  waktu_pagi    TEXT,
+  suhu_pagi     NUMERIC(4,1),
+  humid_pagi    NUMERIC(4,1),
+  status_pagi   TEXT,
+  waktu_malam   TEXT,
+  suhu_malam    NUMERIC(4,1),
+  humid_malam   NUMERIC(4,1),
+  status_malam  TEXT,
+  avg_suhu      NUMERIC(4,1),
+  min_suhu      NUMERIC(4,1),
+  max_suhu      NUMERIC(4,1),
+  avg_humid     NUMERIC(4,1),
+  created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_laporan_harian_tanggal ON laporan_harian (tanggal DESC);
+ALTER TABLE laporan_harian ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Allow public read laporan_harian" ON laporan_harian FOR SELECT USING (true);
+CREATE POLICY "Allow service role all laporan_harian" ON laporan_harian FOR ALL USING (true) WITH CHECK (true);
+

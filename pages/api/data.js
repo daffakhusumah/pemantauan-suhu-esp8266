@@ -1,6 +1,6 @@
 // pages/api/data.js
 //
-// POST /api/data  → terima data dari ESP8266, simpan ke Supabase
+// POST /api/data  → terima data dari ESP8266 + SHT31, simpan ke Supabase
 // GET  /api/data  → ambil 60 data terakhir untuk grafik
 
 import { supabase } from '../../lib/supabase'
@@ -45,7 +45,7 @@ export default async function handler(req, res) {
       .insert({
         suhu:   parseFloat(suhu.toFixed(1)),
         humid:  parseFloat(humid.toFixed(1)),
-        device: device || 'ESP8266-DHT11',
+        device: device || 'ESP8266-SHT31',
       })
 
     if (error) {

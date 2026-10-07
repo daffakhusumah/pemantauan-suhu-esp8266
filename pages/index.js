@@ -668,7 +668,7 @@ export default function Dashboard() {
       <div className="header">
         <div>
           <h1>🌡️ Pemantauan Suhu Server — RS Fatmawati</h1>
-          <p>ESP8266 + DHT11 | Monitoring Otomatis 24 Jam | Update tiap 10 detik</p>
+          <p>Monitoring Otomatis 24 Jam</p>
         </div>
         <div className="status-pill">
           <div className="dot" style={{ background: dotColor }} />
@@ -1174,7 +1174,7 @@ export default function Dashboard() {
         )}
       </div>
 
-      <footer>RS Fatmawati | Server Room Monitoring | ESP8266 + DHT11 → Vercel + Supabase</footer>
+      <footer>RS Fatmawati | Server Room Monitoring | Monitoring Otomatis 24 Jam</footer>
     </>
   )
 }

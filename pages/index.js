@@ -5,15 +5,125 @@
 import Head from 'next/head'
 import { useEffect, useRef, useState, useCallback } from 'react'
 
-// ─── Konstanta ────────────────────────────────────────────────────────────────
-const SUHU_WARNING = 25
-const SUHU_DANGER  = 27
+// ─── Konstanta Ambang Batas (Standar Ruang Server) ───────────────────────────
+const SUHU_MIN_CRIT  = 15.0
+const SUHU_MIN_WARN  = 18.0
+const SUHU_MAX_WARN  = 25.0
+const SUHU_MAX_CRIT  = 28.0
+
+const HUMID_MIN_CRIT = 35.0
+const HUMID_MIN_WARN = 40.0
+const HUMID_MAX_WARN = 55.0
+const HUMID_MAX_CRIT = 65.0
+
+// Untuk kompatibilitas backward
+const SUHU_WARNING = SUHU_MAX_WARN
+const SUHU_DANGER  = SUHU_MAX_CRIT
+
 const BULAN_ID = ['Januari','Februari','Maret','April','Mei','Juni',
                   'Juli','Agustus','September','Oktober','November','Desember']
 
-// ─── Helper ───────────────────────────────────────────────────────────────────
-const suhuColor = s => !s && s !== 0 ? '#94a3b8' : s > SUHU_DANGER ? '#ef4444' : s > SUHU_WARNING ? '#f59e0b' : '#22c55e'
-const suhuEmoji = s => s === null || s === undefined ? '❓' : s > SUHU_DANGER ? '🔴' : s > SUHU_WARNING ? '⚠️' : '✅'
+// ─── Status & Evaluasi Terpadu ───────────────────────────────────────────────
+const getSuhuStatus = (s) => {
+  if (s === null || s === undefined || isNaN(s)) return 'none'
+  const v = parseFloat(s)
+  if (v > SUHU_MAX_CRIT || v < SUHU_MIN_CRIT) return 'danger'
+  if (v > SUHU_MAX_WARN || v < SUHU_MIN_WARN) return 'warning'
+  return 'ok'
+}
+
+const getHumidStatus = (h) => {
+  if (h === null || h === undefined || isNaN(h)) return 'none'
+  const v = parseFloat(h)
+  if (v > HUMID_MAX_CRIT || v < HUMID_MIN_CRIT) return 'danger'
+  if (v > HUMID_MAX_WARN || v < HUMID_MIN_WARN) return 'warning'
+  return 'ok'
+}
+
+const getCombinedStatus = (s, h) => {
+  const ss = getSuhuStatus(s)
+  const hs = getHumidStatus(h)
+  if (ss === 'danger' || hs === 'danger') return 'danger'
+  if (ss === 'warning' || hs === 'warning') return 'warning'
+  if (ss === 'ok' && hs === 'ok') return 'ok'
+  if (ss === 'ok') return hs === 'none' ? 'ok' : hs
+  if (hs === 'ok') return ss === 'none' ? 'ok' : ss
+  return 'none'
+}
+
+const statusColor = (st) => {
+  switch (st) {
+    case 'danger':  return '#ef4444'
+    case 'warning': return '#f59e0b'
+    case 'ok':      return '#22c55e'
+    default:        return '#94a3b8'
+  }
+}
+
+const statusEmoji = (st) => {
+  switch (st) {
+    case 'danger':  return '🔴'
+    case 'warning': return '⚠️'
+    case 'ok':      return '✅'
+    default:        return '❓'
+  }
+}
+
+const suhuColor = s => statusColor(getSuhuStatus(s))
+const suhuEmoji = s => statusEmoji(getSuhuStatus(s))
+
+function getAlertDetails(suhu, humid) {
+  const ss = getSuhuStatus(suhu)
+  const hs = getHumidStatus(humid)
+  const combined = getCombinedStatus(suhu, humid)
+
+  if (combined === 'none') {
+    return { status: 'none', emoji: '⏳', message: 'Memuat data sensor...' }
+  }
+
+  if (combined === 'danger') {
+    const reasons = []
+    if (ss === 'danger') {
+      if (suhu > SUHU_MAX_CRIT) reasons.push(`Suhu ${suhu}°C melebihi batas bahaya (>28.0°C)`)
+      else reasons.push(`Suhu ${suhu}°C terlalu dingin (<15.0°C)`)
+    }
+    if (hs === 'danger') {
+      if (humid > HUMID_MAX_CRIT) reasons.push(`Kelembapan ${humid}% terlalu tinggi (>65%, risiko kondensasi)`)
+      else reasons.push(`Kelembapan ${humid}% terlalu rendah (<35%, risiko listrik statis/ESD)`)
+    }
+    const reasonText = reasons.length ? reasons.join(' & ') : 'Kondisi ruang server kritis'
+    const action = ss === 'danger' ? 'Segera periksa sistem pendingin AC!' : 'Segera periksa sirkulasi & kelembapan ruangan!'
+    return {
+      status: 'danger',
+      emoji: '🔴',
+      message: `PERINGATAN KRITIS: ${reasonText}. ${action}`
+    }
+  }
+
+  if (combined === 'warning') {
+    const reasons = []
+    if (ss === 'warning') {
+      if (suhu > SUHU_MAX_WARN) reasons.push(`Suhu ${suhu}°C mendekati batas atas (25.1–28.0°C)`)
+      else reasons.push(`Suhu ${suhu}°C mendekati batas bawah (15.0–17.9°C)`)
+    }
+    if (hs === 'warning') {
+      if (humid > HUMID_MAX_WARN) reasons.push(`Kelembapan ${humid}% mendekati batas atas (56–65%)`)
+      else reasons.push(`Kelembapan ${humid}% mendekati batas bawah (35–39%)`)
+    }
+    const reasonText = reasons.length ? reasons.join(' & ') : 'Parameter mendekati ambang batas'
+    return {
+      status: 'warning',
+      emoji: '⚠️',
+      message: `WASPADA: ${reasonText}. Pantau kondisi ruangan secara berkala.`
+    }
+  }
+
+  return {
+    status: 'ok',
+    emoji: '✅',
+    message: `Kondisi Normal: Suhu ${suhu}°C (18.0–25.0°C) & Kelembapan ${humid}% (40–55%). Semua sistem beroperasi aman.`
+  }
+}
 
 // ─── Chart helpers ────────────────────────────────────────────────────────────
 const commonAxis = {
@@ -193,8 +303,8 @@ export default function Dashboard() {
       const validS = suhuVals.filter(v => v !== null && v !== undefined)
       const minS = validS.length ? Math.min(...validS) : 20
       const maxS = validS.length ? Math.max(...validS) : 30
-      const yMin = Math.max(0, Math.floor(Math.min(minS, 18) - 1))
-      const yMax = Math.min(80, Math.ceil(Math.max(maxS, SUHU_DANGER) + 2))
+      const yMin = Math.max(0, Math.floor(Math.min(minS, SUHU_MIN_WARN) - 2))
+      const yMax = Math.min(80, Math.ceil(Math.max(maxS, SUHU_MAX_CRIT) + 2))
 
       const isSuhuValid = dailySuhuObj.current && dailySuhuObj.current.canvas === dailySuhuRef.current
       const isHumidValid = dailyHumidObj.current && dailyHumidObj.current.canvas === dailyHumidRef.current
@@ -202,16 +312,19 @@ export default function Dashboard() {
       if (isSuhuValid && isHumidValid) {
         dailySuhuObj.current.data.labels = labels
         dailySuhuObj.current.data.datasets[0].data = suhuVals
-        dailySuhuObj.current.data.datasets[1].data = labels.map(() => SUHU_WARNING)
-        if (dailySuhuObj.current.data.datasets[2]) {
-          dailySuhuObj.current.data.datasets[2].data = labels.map(() => SUHU_DANGER)
-        }
+        if (dailySuhuObj.current.data.datasets[1]) dailySuhuObj.current.data.datasets[1].data = labels.map(() => SUHU_MAX_CRIT)
+        if (dailySuhuObj.current.data.datasets[2]) dailySuhuObj.current.data.datasets[2].data = labels.map(() => SUHU_MAX_WARN)
+        if (dailySuhuObj.current.data.datasets[3]) dailySuhuObj.current.data.datasets[3].data = labels.map(() => SUHU_MIN_WARN)
         dailySuhuObj.current.options.scales.y.min = yMin
         dailySuhuObj.current.options.scales.y.max = yMax
         dailySuhuObj.current.update('none')
 
         dailyHumidObj.current.data.labels = labels
         dailyHumidObj.current.data.datasets[0].data = humidVals
+        if (dailyHumidObj.current.data.datasets[1]) dailyHumidObj.current.data.datasets[1].data = labels.map(() => HUMID_MAX_WARN)
+        if (dailyHumidObj.current.data.datasets[2]) dailyHumidObj.current.data.datasets[2].data = labels.map(() => HUMID_MIN_WARN)
+        if (dailyHumidObj.current.data.datasets[3]) dailyHumidObj.current.data.datasets[3].data = labels.map(() => HUMID_MAX_CRIT)
+        if (dailyHumidObj.current.data.datasets[4]) dailyHumidObj.current.data.datasets[4].data = labels.map(() => HUMID_MIN_CRIT)
         dailyHumidObj.current.update('none')
         return
       }
@@ -230,13 +343,17 @@ export default function Dashboard() {
             borderWidth: 2, pointRadius: 1.5, pointHoverRadius: 5, pointHitRadius: 10,
             tension: 0.35, fill: true, spanGaps: true,
           }, {
-            label: `Batas Aman (${SUHU_WARNING}°C)`,
-            data: labels.map(() => SUHU_WARNING),
+            label: `Batas Bahaya (${SUHU_MAX_CRIT}°C)`,
+            data: labels.map(() => SUHU_MAX_CRIT),
+            borderColor: '#ef4444', borderWidth: 1.5, borderDash: [4,4], pointRadius: 0, fill: false,
+          }, {
+            label: `Batas Waspada Atas (${SUHU_MAX_WARN}°C)`,
+            data: labels.map(() => SUHU_MAX_WARN),
             borderColor: '#f59e0b', borderWidth: 1.5, borderDash: [6,4], pointRadius: 0, fill: false,
           }, {
-            label: `Batas Bahaya (${SUHU_DANGER}°C)`,
-            data: labels.map(() => SUHU_DANGER),
-            borderColor: '#ef4444', borderWidth: 1.5, borderDash: [4,4], pointRadius: 0, fill: false,
+            label: `Batas Waspada Bawah (${SUHU_MIN_WARN}°C)`,
+            data: labels.map(() => SUHU_MIN_WARN),
+            borderColor: '#f59e0b', borderWidth: 1.5, borderDash: [6,4], pointRadius: 0, fill: false,
           }],
         },
         options: {
@@ -291,6 +408,22 @@ export default function Dashboard() {
             borderColor: '#60a5fa', backgroundColor: 'rgba(96,165,250,0.12)',
             borderWidth: 2, pointRadius: 1.5, pointHoverRadius: 5, pointHitRadius: 10,
             tension: 0.35, fill: true, spanGaps: true,
+          }, {
+            label: `Batas Aman Atas (${HUMID_MAX_WARN}%)`,
+            data: labels.map(() => HUMID_MAX_WARN),
+            borderColor: '#22c55e', borderWidth: 1, borderDash: [6,4], pointRadius: 0, fill: false,
+          }, {
+            label: `Batas Aman Bawah (${HUMID_MIN_WARN}%)`,
+            data: labels.map(() => HUMID_MIN_WARN),
+            borderColor: '#22c55e', borderWidth: 1, borderDash: [6,4], pointRadius: 0, fill: false,
+          }, {
+            label: `Batas Kritis Atas (${HUMID_MAX_CRIT}%)`,
+            data: labels.map(() => HUMID_MAX_CRIT),
+            borderColor: '#ef4444', borderWidth: 1.2, borderDash: [4,4], pointRadius: 0, fill: false,
+          }, {
+            label: `Batas Kritis Bawah (${HUMID_MIN_CRIT}%)`,
+            data: labels.map(() => HUMID_MIN_CRIT),
+            borderColor: '#ef4444', borderWidth: 1.2, borderDash: [4,4], pointRadius: 0, fill: false,
           }],
         },
         options: {
@@ -301,6 +434,7 @@ export default function Dashboard() {
           plugins: {
             legend: { display: false },
             tooltip: {
+              filter: (item) => item.datasetIndex === 0,
               callbacks: {
                 title: (items) => {
                   const idx = items[0]?.dataIndex
@@ -365,6 +499,9 @@ export default function Dashboard() {
       if (isSuhuValid && isHumidValid) {
         weekSuhuObj.current.data.labels = labels
         weekSuhuObj.current.data.datasets[0].data = suhuVals
+        if (weekSuhuObj.current.data.datasets[1]) weekSuhuObj.current.data.datasets[1].data = labels.map(() => SUHU_MAX_CRIT)
+        if (weekSuhuObj.current.data.datasets[2]) weekSuhuObj.current.data.datasets[2].data = labels.map(() => SUHU_MAX_WARN)
+        if (weekSuhuObj.current.data.datasets[3]) weekSuhuObj.current.data.datasets[3].data = labels.map(() => SUHU_MIN_WARN)
         weekSuhuObj.current.update()
         weekHumidObj.current.data.labels = labels
         weekHumidObj.current.data.datasets[0].data = humidVals
@@ -384,8 +521,16 @@ export default function Dashboard() {
             borderColor: '#f87171', backgroundColor: 'rgba(248,113,113,0.12)',
             borderWidth: 2, pointRadius: 5, tension: 0.3, fill: true, spanGaps: true,
           }, {
-            label: `Batas Aman (${SUHU_WARNING}°C)`,
-            data: labels.map(() => SUHU_WARNING),
+            label: `Batas Bahaya (${SUHU_MAX_CRIT}°C)`,
+            data: labels.map(() => SUHU_MAX_CRIT),
+            borderColor: '#ef4444', borderWidth: 1, borderDash: [4,4], pointRadius: 0, fill: false,
+          }, {
+            label: `Batas Waspada Atas (${SUHU_MAX_WARN}°C)`,
+            data: labels.map(() => SUHU_MAX_WARN),
+            borderColor: '#f59e0b', borderWidth: 1, borderDash: [6,4], pointRadius: 0, fill: false,
+          }, {
+            label: `Batas Waspada Bawah (${SUHU_MIN_WARN}°C)`,
+            data: labels.map(() => SUHU_MIN_WARN),
             borderColor: '#f59e0b', borderWidth: 1, borderDash: [6,4], pointRadius: 0, fill: false,
           }],
         },
@@ -394,7 +539,7 @@ export default function Dashboard() {
           maintainAspectRatio: false,
           animation: { duration: 500 },
           plugins: { legend: { labels: { color: '#94a3b8', font: { size: 11 } } } },
-          scales: { ...commonAxis, y: { ...commonAxis.y, min: 15, max: 35 } },
+          scales: { ...commonAxis, y: { ...commonAxis.y, min: 14, max: 32 } },
         },
       })
 
@@ -484,6 +629,9 @@ export default function Dashboard() {
         const ds0 = monthSuhuObj.current.data.datasets
         monthSuhuObj.current.data.labels = labels
         ds0[0].data = suhuPagi; ds0[1].data = suhuMalam
+        if (ds0[2]) ds0[2].data = labels.map(() => SUHU_MAX_CRIT)
+        if (ds0[3]) ds0[3].data = labels.map(() => SUHU_MAX_WARN)
+        if (ds0[4]) ds0[4].data = labels.map(() => SUHU_MIN_WARN)
         monthSuhuObj.current.update()
         const ds1 = monthHumidObj.current.data.datasets
         monthHumidObj.current.data.labels = labels
@@ -509,10 +657,12 @@ export default function Dashboard() {
           datasets: [
             { label: '🌅 Suhu Pagi', data: suhuPagi, borderColor: '#fbbf24', backgroundColor: 'rgba(251,191,36,0.1)', borderWidth: 2, pointRadius: 3, tension: 0.3, fill: false, spanGaps: true },
             { label: '🌙 Suhu Malam', data: suhuMalam, borderColor: '#818cf8', backgroundColor: 'rgba(129,140,248,0.1)', borderWidth: 2, pointRadius: 3, tension: 0.3, fill: false, spanGaps: true },
-            { label: `Batas (${SUHU_WARNING}°C)`, data: labels.map(() => SUHU_WARNING), borderColor: '#ef4444', borderWidth: 1, borderDash: [6,4], pointRadius: 0, fill: false },
+            { label: `Batas Bahaya (${SUHU_MAX_CRIT}°C)`, data: labels.map(() => SUHU_MAX_CRIT), borderColor: '#ef4444', borderWidth: 1, borderDash: [4,4], pointRadius: 0, fill: false },
+            { label: `Batas Waspada Atas (${SUHU_MAX_WARN}°C)`, data: labels.map(() => SUHU_MAX_WARN), borderColor: '#f59e0b', borderWidth: 1, borderDash: [6,4], pointRadius: 0, fill: false },
+            { label: `Batas Waspada Bawah (${SUHU_MIN_WARN}°C)`, data: labels.map(() => SUHU_MIN_WARN), borderColor: '#f59e0b', borderWidth: 1, borderDash: [6,4], pointRadius: 0, fill: false },
           ],
         },
-        options: { ...lineOpt, scales: { ...commonAxis, y: { ...commonAxis.y, min: 15, max: 35 } } },
+        options: { ...lineOpt, scales: { ...commonAxis, y: { ...commonAxis.y, min: 14, max: 32 } } },
       })
 
       monthHumidObj.current = new Chart(monthHumidRef.current, {
@@ -590,8 +740,12 @@ export default function Dashboard() {
         .card .val{font-size:2.2rem;font-weight:700}
         .card .unt{font-size:.85rem;color:#94a3b8;margin-top:2px}
 
-        .alert{display:flex;align-items:center;gap:10px;border-radius:8px;padding:11px 15px;margin-bottom:18px;font-size:.875rem;font-weight:500}
-        .alert.danger {background:rgba(239,68,68,.15); border:1px solid #ef4444;color:#fca5a5}
+        @keyframes pulse-subtle {
+          0%, 100% { box-shadow: 0 0 0 0 rgba(239,68,68,0); }
+          50% { box-shadow: 0 0 16px 2px rgba(239,68,68,0.4); }
+        }
+        .alert{display:flex;align-items:center;gap:12px;border-radius:8px;padding:12px 16px;margin-bottom:18px;font-size:.875rem;font-weight:500;line-height:1.45}
+        .alert.danger {background:rgba(239,68,68,.18); border:1px solid #ef4444;color:#fca5a5;animation:pulse-subtle 2.5s infinite ease-in-out}
         .alert.warning{background:rgba(245,158,11,.15);border:1px solid #f59e0b;color:#fcd34d}
         .alert.ok     {background:rgba(34,197,94,.12); border:1px solid #22c55e;color:#86efac}
 
@@ -745,47 +899,67 @@ export default function Dashboard() {
         {tab === 'realtime' && (
           <>
             {/* Alert */}
-            {latest.suhu !== null && (
-              <div className={`alert ${latest.suhu>SUHU_DANGER?'danger':latest.suhu>SUHU_WARNING?'warning':'ok'}`}>
-                <span style={{fontSize:'1.2rem'}}>{suhuEmoji(latest.suhu)}</span>
-                {latest.suhu > SUHU_DANGER
-                  ? `SUHU BERBAHAYA! ${latest.suhu}°C melebihi batas aman (${SUHU_DANGER}°C). Segera periksa pendingin!`
-                  : latest.suhu > SUHU_WARNING
-                  ? `Suhu mendekati batas aman: ${latest.suhu}°C. Pantau secara berkala.`
-                  : `Suhu normal: ${latest.suhu}°C. Semua sistem berjalan baik.`}
-              </div>
-            )}
+            {(() => {
+              const alertInfo = getAlertDetails(latest.suhu, latest.humid)
+              if (!alertInfo || alertInfo.status === 'none') return null
+              return (
+                <div className={`alert ${alertInfo.status}`}>
+                  <span style={{fontSize:'1.35rem',flexShrink:0}}>{alertInfo.emoji}</span>
+                  <div>{alertInfo.message}</div>
+                </div>
+              )
+            })()}
 
             {/* Kartu nilai terkini */}
-            <div className="cards">
-              <div className="card" style={{borderColor: suhuColor(latest.suhu)}}>
-                <div className="lbl">🌡 Suhu Sekarang</div>
-                <div className="val" style={{color: suhuColor(latest.suhu)}}>
-                  {latest.suhu !== null ? Number(latest.suhu).toFixed(1) : '--'}
+            {(() => {
+              const sStatus = getSuhuStatus(latest.suhu)
+              const hStatus = getHumidStatus(latest.humid)
+              const sColor = statusColor(sStatus)
+              const hColor = statusColor(hStatus)
+
+              const sSub = sStatus === 'danger' ? (latest.suhu > SUHU_MAX_CRIT ? 'Bahaya (>28°C)' : 'Bahaya (<15°C)')
+                         : sStatus === 'warning' ? (latest.suhu > SUHU_MAX_WARN ? 'Waspada (25.1–28°C)' : 'Waspada (<18°C)')
+                         : sStatus === 'ok' ? 'Normal (18–25°C)' : '--'
+
+              const hSub = hStatus === 'danger' ? (latest.humid > HUMID_MAX_CRIT ? 'Bahaya (>65%)' : 'Bahaya (<35%)')
+                         : hStatus === 'warning' ? (latest.humid > HUMID_MAX_WARN ? 'Waspada (56–65%)' : 'Waspada (35–39%)')
+                         : hStatus === 'ok' ? 'Normal (40–55%)' : '--'
+
+              return (
+                <div className="cards">
+                  <div className="card" style={{borderColor: sColor}}>
+                    <div className="lbl">🌡 Suhu Sekarang</div>
+                    <div className="val" style={{color: sColor}}>
+                      {latest.suhu !== null ? Number(latest.suhu).toFixed(1) : '--'}
+                    </div>
+                    <div className="unt">°C</div>
+                    <div style={{fontSize:'.72rem',color:sColor,marginTop:4,fontWeight:600}}>{sSub}</div>
+                  </div>
+                  <div className="card" style={{borderColor: hColor}}>
+                    <div className="lbl">💧 Kelembaban</div>
+                    <div className="val" style={{color: hColor}}>
+                      {latest.humid !== null ? Number(latest.humid).toFixed(1) : '--'}
+                    </div>
+                    <div className="unt">%</div>
+                    <div style={{fontSize:'.72rem',color:hColor,marginTop:4,fontWeight:600}}>{hSub}</div>
+                  </div>
+                  <div className="card">
+                    <div className="lbl">🕐 Update Terakhir</div>
+                    <div className="val" style={{fontSize:'1.2rem',color:'#a78bfa'}}>
+                      {latest.timestamp || '--:--:--'}
+                    </div>
+                    <div style={{fontSize:'.72rem',color:'#94a3b8',marginTop:6}}>Waktu Server (WIB)</div>
+                  </div>
                 </div>
-                <div className="unt">°C</div>
-              </div>
-              <div className="card">
-                <div className="lbl">💧 Kelembaban</div>
-                <div className="val" style={{color:'#60a5fa'}}>
-                  {latest.humid !== null ? Number(latest.humid).toFixed(1) : '--'}
-                </div>
-                <div className="unt">%</div>
-              </div>
-              <div className="card">
-                <div className="lbl">🕐 Update Terakhir</div>
-                <div className="val" style={{fontSize:'1.2rem',color:'#a78bfa'}}>
-                  {latest.timestamp || '--:--:--'}
-                </div>
-              </div>
-            </div>
+              )
+            })()}
 
             {/* Legend Status & Badge Periode 24 Jam */}
             <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',flexWrap:'wrap',gap:10,marginBottom:14}}>
               <div className="legend" style={{marginBottom:0}}>
-                <div className="legend-item"><span style={{color:'#22c55e'}}>●</span> Normal (≤{SUHU_WARNING}°C)</div>
-                <div className="legend-item"><span style={{color:'#f59e0b'}}>●</span> Perhatian ({SUHU_WARNING}–{SUHU_DANGER}°C)</div>
-                <div className="legend-item"><span style={{color:'#ef4444'}}>●</span> Bahaya ({'>'}{SUHU_DANGER}°C)</div>
+                <div className="legend-item"><span style={{color:'#22c55e'}}>●</span> Normal (18–25°C | 40–55%)</div>
+                <div className="legend-item"><span style={{color:'#f59e0b'}}>●</span> Waspada (25.1–28°C / &lt;18°C | 35–39% / 56–65%)</div>
+                <div className="legend-item"><span style={{color:'#ef4444'}}>●</span> Bahaya (&gt;28°C / &lt;15°C | &lt;35% / &gt;65%)</div>
               </div>
               <div style={{fontSize:'.75rem',color:'#38bdf8',background:'rgba(56,189,248,0.1)',padding:'4px 10px',borderRadius:6,border:'1px solid rgba(56,189,248,0.2)'}}>
                 ⏱️ Periode 24 Jam Terakhir
@@ -810,15 +984,15 @@ export default function Dashboard() {
                   </div>
                   <div className="stat-pill">
                     <span className="stat-lbl">🔻 Suhu Terendah</span>
-                    <span className="stat-val" style={{color:'#22c55e'}}>{minS}°C</span>
+                    <span className="stat-val" style={{color:parseFloat(minS)<SUHU_MIN_CRIT?'#ef4444':parseFloat(minS)<SUHU_MIN_WARN?'#f59e0b':'#22c55e'}}>{minS}°C</span>
                   </div>
                   <div className="stat-pill">
                     <span className="stat-lbl">🔺 Suhu Tertinggi</span>
-                    <span className="stat-val" style={{color:parseFloat(maxS)>SUHU_DANGER?'#ef4444':parseFloat(maxS)>SUHU_WARNING?'#f59e0b':'#38bdf8'}}>{maxS}°C</span>
+                    <span className="stat-val" style={{color:parseFloat(maxS)>SUHU_MAX_CRIT?'#ef4444':parseFloat(maxS)>SUHU_MAX_WARN?'#f59e0b':'#38bdf8'}}>{maxS}°C</span>
                   </div>
                   <div className="stat-pill">
                     <span className="stat-lbl">💧 Rata-rata Humid</span>
-                    <span className="stat-val" style={{color:'#60a5fa'}}>{avgH}%</span>
+                    <span className="stat-val" style={{color:statusColor(getHumidStatus(parseFloat(avgH)))}}>{avgH}%</span>
                   </div>
                 </div>
               )
@@ -883,9 +1057,9 @@ export default function Dashboard() {
                         <tr key={d.tanggal}>
                           <td className="td-date">{d.label}</td>
                           <td className="suhu-val" style={{color:suhuColor(d.avg_suhu)}}>{d.avg_suhu!==null?`${d.avg_suhu}°C`:'-'}</td>
-                          <td className="humid-val">{d.avg_humid!==null?`${d.avg_humid}%`:'-'}</td>
+                          <td className="humid-val" style={{color:statusColor(getHumidStatus(d.avg_humid))}}>{d.avg_humid!==null?`${d.avg_humid}%`:'-'}</td>
                           <td style={{color:'#94a3b8'}}>{d.count} data</td>
-                          <td>{suhuEmoji(d.avg_suhu)}</td>
+                          <td>{statusEmoji(getCombinedStatus(d.avg_suhu, d.avg_humid))}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -1081,9 +1255,9 @@ export default function Dashboard() {
 
                 {/* Legend + info di web */}
                 <div className="legend no-print">
-                  <div className="legend-item"><span style={{color:'#22c55e'}}>✅</span> Normal (≤{SUHU_WARNING}°C)</div>
-                  <div className="legend-item"><span style={{color:'#f59e0b'}}>⚠️</span> Perhatian ({SUHU_WARNING}–{SUHU_DANGER}°C)</div>
-                  <div className="legend-item"><span style={{color:'#ef4444'}}>🔴</span> Bahaya ({'>'}{SUHU_DANGER}°C)</div>
+                  <div className="legend-item"><span style={{color:'#22c55e'}}>✅</span> Normal (18.0–25.0°C &amp; 40–55%)</div>
+                  <div className="legend-item"><span style={{color:'#f59e0b'}}>⚠️</span> Waspada (25.1–28.0°C / &lt;18°C | 35–39% / 56–65%)</div>
+                  <div className="legend-item"><span style={{color:'#ef4444'}}>🔴</span> Bahaya (&gt;28.0°C / &lt;15°C | &lt;35% / &gt;65%)</div>
                   <div className="legend-item" style={{marginLeft:'auto',color:'#94a3b8',fontSize:'.73rem'}}>
                     Pagi ≈ 08:00 WIB | Malam ≈ 20:00 WIB
                   </div>
@@ -1094,11 +1268,13 @@ export default function Dashboard() {
                   const rows = monthly.data.filter(r => r.has_data)
                   const all  = [...rows.map(r=>r.suhu_pagi),...rows.map(r=>r.suhu_malam)].filter(v=>v!==null)
                   const avg  = a => a.length?(a.reduce((x,y)=>x+y,0)/a.length).toFixed(1):'-'
+                  const maxVal = all.length ? Math.max(...all) : null
+                  const minVal = all.length ? Math.min(...all) : null
                   return (
                     <div className="cards" style={{marginBottom:'16px'}}>
                       <div className="card"><div className="lbl">📊 Rata-rata Suhu</div><div className="val" style={{color:suhuColor(parseFloat(avg(all))),fontSize:'1.6rem'}}>{avg(all)}°C</div></div>
-                      <div className="card"><div className="lbl">🔺 Suhu Tertinggi</div><div className="val" style={{color:'#ef4444',fontSize:'1.6rem'}}>{all.length?Math.max(...all).toFixed(1):'-'}°C</div></div>
-                      <div className="card"><div className="lbl">🔻 Suhu Terendah</div><div className="val" style={{color:'#22c55e',fontSize:'1.6rem'}}>{all.length?Math.min(...all).toFixed(1):'-'}°C</div></div>
+                      <div className="card"><div className="lbl">🔺 Suhu Tertinggi</div><div className="val" style={{color:maxVal!==null?(maxVal>SUHU_MAX_CRIT?'#ef4444':maxVal>SUHU_MAX_WARN?'#f59e0b':'#38bdf8'):'#94a3b8',fontSize:'1.6rem'}}>{maxVal!==null?maxVal.toFixed(1):'-'}°C</div></div>
+                      <div className="card"><div className="lbl">🔻 Suhu Terendah</div><div className="val" style={{color:minVal!==null?(minVal<SUHU_MIN_CRIT?'#ef4444':minVal<SUHU_MIN_WARN?'#f59e0b':'#22c55e'):'#94a3b8',fontSize:'1.6rem'}}>{minVal!==null?minVal.toFixed(1):'-'}°C</div></div>
                       <div className="card"><div className="lbl">📅 Hari Tercatat</div><div className="val" style={{color:'#a78bfa',fontSize:'1.6rem'}}>{rows.length}</div><div className="unt">dari {monthly.total_hari} hari</div></div>
                     </div>
                   )
@@ -1133,12 +1309,12 @@ export default function Dashboard() {
                                 <>
                                   <td style={{color:'#fbbf24',fontSize:'.78rem'}}>{row.waktu_pagi}</td>
                                   <td className="suhu-val" style={{color:suhuColor(row.suhu_pagi)}}>{row.suhu_pagi!==null?`${row.suhu_pagi}°C`:'-'}</td>
-                                  <td className="humid-val">{row.humid_pagi!==null?`${row.humid_pagi}%`:'-'}</td>
-                                  <td>{row.status_pagi}</td>
+                                  <td className="humid-val" style={{color:statusColor(getHumidStatus(row.humid_pagi))}}>{row.humid_pagi!==null?`${row.humid_pagi}%`:'-'}</td>
+                                  <td>{row.status_pagi || statusEmoji(getCombinedStatus(row.suhu_pagi, row.humid_pagi))}</td>
                                   <td style={{color:'#818cf8',fontSize:'.78rem'}}>{row.waktu_malam}</td>
                                   <td className="suhu-val" style={{color:suhuColor(row.suhu_malam)}}>{row.suhu_malam!==null?`${row.suhu_malam}°C`:'-'}</td>
-                                  <td className="humid-val">{row.humid_malam!==null?`${row.humid_malam}%`:'-'}</td>
-                                  <td>{row.status_malam}</td>
+                                  <td className="humid-val" style={{color:statusColor(getHumidStatus(row.humid_malam))}}>{row.humid_malam!==null?`${row.humid_malam}%`:'-'}</td>
+                                  <td>{row.status_malam || statusEmoji(getCombinedStatus(row.suhu_malam, row.humid_malam))}</td>
                                 </>
                               ) : (
                                 <td colSpan={8} className="td-nodata">— Tidak ada data —</td>

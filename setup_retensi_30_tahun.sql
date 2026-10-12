@@ -93,20 +93,30 @@ BEGIN
   FROM sensor_readings
   WHERE created_at >= start_day_iso AND created_at <= end_day_iso;
 
-  -- Tentukan status emoji jika data tersedia
-  IF rec_pagi.suhu IS NOT NULL THEN
-    w_pagi := rec_pagi.jam;
-    IF rec_pagi.suhu > 27 THEN status_p := '🔴';
-    ELSIF rec_pagi.suhu > 25 THEN status_p := '⚠️';
-    ELSE status_p := '✅';
+  -- Tentukan status emoji jika data tersedia (Suhu & Kelembapan)
+  IF rec_pagi.suhu IS NOT NULL OR rec_pagi.humid IS NOT NULL THEN
+    w_pagi := COALESCE(rec_pagi.jam, '-');
+    IF (rec_pagi.suhu IS NOT NULL AND (rec_pagi.suhu > 28 OR rec_pagi.suhu < 15)) OR
+       (rec_pagi.humid IS NOT NULL AND (rec_pagi.humid > 65 OR rec_pagi.humid < 35)) THEN
+      status_p := '🔴';
+    ELSIF (rec_pagi.suhu IS NOT NULL AND (rec_pagi.suhu > 25 OR rec_pagi.suhu < 18)) OR
+          (rec_pagi.humid IS NOT NULL AND (rec_pagi.humid > 55 OR rec_pagi.humid < 40)) THEN
+      status_p := '⚠️';
+    ELSE
+      status_p := '✅';
     END IF;
   END IF;
 
-  IF rec_malam.suhu IS NOT NULL THEN
-    w_malam := rec_malam.jam;
-    IF rec_malam.suhu > 27 THEN status_m := '🔴';
-    ELSIF rec_malam.suhu > 25 THEN status_m := '⚠️';
-    ELSE status_m := '✅';
+  IF rec_malam.suhu IS NOT NULL OR rec_malam.humid IS NOT NULL THEN
+    w_malam := COALESCE(rec_malam.jam, '-');
+    IF (rec_malam.suhu IS NOT NULL AND (rec_malam.suhu > 28 OR rec_malam.suhu < 15)) OR
+       (rec_malam.humid IS NOT NULL AND (rec_malam.humid > 65 OR rec_malam.humid < 35)) THEN
+      status_m := '🔴';
+    ELSIF (rec_malam.suhu IS NOT NULL AND (rec_malam.suhu > 25 OR rec_malam.suhu < 18)) OR
+          (rec_malam.humid IS NOT NULL AND (rec_malam.humid > 55 OR rec_malam.humid < 40)) THEN
+      status_m := '⚠️';
+    ELSE
+      status_m := '✅';
     END IF;
   END IF;
 

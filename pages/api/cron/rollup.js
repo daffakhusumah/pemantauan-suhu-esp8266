@@ -16,10 +16,21 @@ function fmtTime(dateStr) {
   return `${String(wib.getUTCHours()).padStart(2, '0')}:${String(wib.getUTCMinutes()).padStart(2, '0')}`
 }
 
-function getStatus(suhu) {
-  if (suhu === null || suhu === undefined) return '-'
-  if (suhu > 27) return '🔴'
-  if (suhu > 25) return '⚠️'
+function getStatus(suhu, humid) {
+  if ((suhu === null || suhu === undefined) && (humid === null || humid === undefined)) return '-'
+  const s = parseFloat(suhu)
+  const h = parseFloat(humid)
+
+  // Status Critical: >28°C atau <15°C, atau humid >65% atau <35%
+  const sCrit = !isNaN(s) && (s > 28 || s < 15)
+  const hCrit = !isNaN(h) && (h > 65 || h < 35)
+  if (sCrit || hCrit) return '🔴'
+
+  // Status Warning: 25.1–28.0°C atau 15.0–17.9°C, atau humid 56–65% atau 35–39%
+  const sWarn = !isNaN(s) && (s > 25 || s < 18)
+  const hWarn = !isNaN(h) && (h > 55 || h < 40)
+  if (sWarn || hWarn) return '⚠️'
+
   return '✅'
 }
 
@@ -122,11 +133,11 @@ export default async function handler(req, res) {
             waktu_pagi:   pagi ? fmtTime(pagi.created_at) : '-',
             suhu_pagi:    pagi ? pagi.suhu : null,
             humid_pagi:   pagi ? pagi.humid : null,
-            status_pagi:  pagi ? getStatus(pagi.suhu) : '-',
+            status_pagi:  pagi ? getStatus(pagi.suhu, pagi.humid) : '-',
             waktu_malam:  malam ? fmtTime(malam.created_at) : '-',
             suhu_malam:   malam ? malam.suhu : null,
             humid_malam:  malam ? malam.humid : null,
-            status_malam: malam ? getStatus(malam.suhu) : '-',
+            status_malam: malam ? getStatus(malam.suhu, malam.humid) : '-',
             avg_suhu:     avgS,
             min_suhu:     minS,
             max_suhu:     maxS,

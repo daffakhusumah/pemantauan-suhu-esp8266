@@ -917,13 +917,13 @@ export default function Dashboard() {
               const sColor = statusColor(sStatus)
               const hColor = statusColor(hStatus)
 
-              const sSub = sStatus === 'danger' ? (latest.suhu > SUHU_MAX_CRIT ? 'Bahaya (>28°C)' : 'Bahaya (<15°C)')
-                         : sStatus === 'warning' ? (latest.suhu > SUHU_MAX_WARN ? 'Waspada (25.1–28°C)' : 'Waspada (<18°C)')
-                         : sStatus === 'ok' ? 'Normal (18–25°C)' : '--'
+              const sSub = sStatus === 'danger' ? 'Bahaya (>28.0°C)'
+                         : sStatus === 'warning' ? 'Waspada (25.1–28.0°C)'
+                         : sStatus === 'ok' ? 'Normal (18.0–25.0°C)' : '--'
 
-              const hSub = hStatus === 'danger' ? (latest.humid > HUMID_MAX_CRIT ? 'Bahaya (>65%)' : 'Bahaya (<35%)')
-                         : hStatus === 'warning' ? (latest.humid > HUMID_MAX_WARN ? 'Waspada (56–65%)' : 'Waspada (35–39%)')
-                         : hStatus === 'ok' ? 'Normal (40–55%)' : '--'
+              const hSub = hStatus === 'danger' ? 'Bahaya (>65% RH)'
+                         : hStatus === 'warning' ? 'Waspada (56–65% RH)'
+                         : hStatus === 'ok' ? 'Normal (40–55% RH)' : '--'
 
               return (
                 <div className="cards">
@@ -955,14 +955,32 @@ export default function Dashboard() {
             })()}
 
             {/* Legend Status & Badge Periode 24 Jam */}
-            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',flexWrap:'wrap',gap:10,marginBottom:14}}>
-              <div className="legend" style={{marginBottom:0}}>
-                <div className="legend-item"><span style={{color:'#22c55e'}}>●</span> Normal (18–25°C | 40–55%)</div>
-                <div className="legend-item"><span style={{color:'#f59e0b'}}>●</span> Waspada (25.1–28°C / &lt;18°C | 35–39% / 56–65%)</div>
-                <div className="legend-item"><span style={{color:'#ef4444'}}>●</span> Bahaya (&gt;28°C / &lt;15°C | &lt;35% / &gt;65%)</div>
+            <div style={{background:'rgba(30,41,59,0.7)',border:'1px solid #334155',borderRadius:10,padding:'10px 14px',marginBottom:14}}>
+              <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',flexWrap:'wrap',gap:8,marginBottom:8,borderBottom:'1px solid rgba(51,65,85,0.6)',paddingBottom:8}}>
+                <span style={{fontSize:'.75rem',fontWeight:700,color:'#94a3b8',textTransform:'uppercase',letterSpacing:'.5px'}}>
+                  📌 Indikator Status Ruang Server
+                </span>
+                <span style={{fontSize:'.73rem',color:'#38bdf8',background:'rgba(56,189,248,0.12)',padding:'3px 9px',borderRadius:6,border:'1px solid rgba(56,189,248,0.25)'}}>
+                  ⏱️ Periode 24 Jam Terakhir
+                </span>
               </div>
-              <div style={{fontSize:'.75rem',color:'#38bdf8',background:'rgba(56,189,248,0.1)',padding:'4px 10px',borderRadius:6,border:'1px solid rgba(56,189,248,0.2)'}}>
-                ⏱️ Periode 24 Jam Terakhir
+
+              <div style={{display:'flex',flexDirection:'column',gap:7}}>
+                {/* Baris Indikator Suhu */}
+                <div style={{display:'flex',alignItems:'center',gap:10,flexWrap:'wrap',fontSize:'.78rem'}}>
+                  <span style={{fontWeight:700,color:'#f87171',minWidth:68}}>🌡️ Suhu:</span>
+                  <div className="legend-item"><span style={{color:'#22c55e'}}>●</span> Normal (18.0–25.0°C)</div>
+                  <div className="legend-item"><span style={{color:'#f59e0b'}}>●</span> Waspada (25.1–28.0°C)</div>
+                  <div className="legend-item"><span style={{color:'#ef4444'}}>●</span> Bahaya (&gt;28.0°C)</div>
+                </div>
+
+                {/* Baris Indikator Kelembapan */}
+                <div style={{display:'flex',alignItems:'center',gap:10,flexWrap:'wrap',fontSize:'.78rem'}}>
+                  <span style={{fontWeight:700,color:'#60a5fa',minWidth:68}}>💧 Humid:</span>
+                  <div className="legend-item"><span style={{color:'#22c55e'}}>●</span> Normal (40–55% RH)</div>
+                  <div className="legend-item"><span style={{color:'#f59e0b'}}>●</span> Waspada (56–65% RH)</div>
+                  <div className="legend-item"><span style={{color:'#ef4444'}}>●</span> Bahaya (&gt;65% RH)</div>
+                </div>
               </div>
             </div>
 
@@ -1254,12 +1272,29 @@ export default function Dashboard() {
                 </div>
 
                 {/* Legend + info di web */}
-                <div className="legend no-print">
-                  <div className="legend-item"><span style={{color:'#22c55e'}}>✅</span> Normal (18.0–25.0°C &amp; 40–55%)</div>
-                  <div className="legend-item"><span style={{color:'#f59e0b'}}>⚠️</span> Waspada (25.1–28.0°C / &lt;18°C | 35–39% / 56–65%)</div>
-                  <div className="legend-item"><span style={{color:'#ef4444'}}>🔴</span> Bahaya (&gt;28.0°C / &lt;15°C | &lt;35% / &gt;65%)</div>
-                  <div className="legend-item" style={{marginLeft:'auto',color:'#94a3b8',fontSize:'.73rem'}}>
-                    Pagi ≈ 08:00 WIB | Malam ≈ 20:00 WIB
+                <div style={{background:'rgba(30,41,59,0.7)',border:'1px solid #334155',borderRadius:10,padding:'10px 14px',marginBottom:16}} className="no-print">
+                  <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',flexWrap:'wrap',gap:8,marginBottom:8,borderBottom:'1px solid rgba(51,65,85,0.6)',paddingBottom:8}}>
+                    <span style={{fontSize:'.75rem',fontWeight:700,color:'#94a3b8',textTransform:'uppercase',letterSpacing:'.5px'}}>
+                      📌 Standar Ambang Batas Laporan
+                    </span>
+                    <span style={{color:'#94a3b8',fontSize:'.73rem'}}>
+                      🌅 Pagi ≈ 08:00 WIB | 🌙 Malam ≈ 20:00 WIB
+                    </span>
+                  </div>
+
+                  <div style={{display:'flex',flexDirection:'column',gap:7}}>
+                    <div style={{display:'flex',alignItems:'center',gap:10,flexWrap:'wrap',fontSize:'.78rem'}}>
+                      <span style={{fontWeight:700,color:'#f87171',minWidth:68}}>🌡️ Suhu:</span>
+                      <div className="legend-item"><span style={{color:'#22c55e'}}>✅</span> Normal (18.0–25.0°C)</div>
+                      <div className="legend-item"><span style={{color:'#f59e0b'}}>⚠️</span> Waspada (25.1–28.0°C)</div>
+                      <div className="legend-item"><span style={{color:'#ef4444'}}>🔴</span> Bahaya (&gt;28.0°C)</div>
+                    </div>
+                    <div style={{display:'flex',alignItems:'center',gap:10,flexWrap:'wrap',fontSize:'.78rem'}}>
+                      <span style={{fontWeight:700,color:'#60a5fa',minWidth:68}}>💧 Humid:</span>
+                      <div className="legend-item"><span style={{color:'#22c55e'}}>✅</span> Normal (40–55% RH)</div>
+                      <div className="legend-item"><span style={{color:'#f59e0b'}}>⚠️</span> Waspada (56–65% RH)</div>
+                      <div className="legend-item"><span style={{color:'#ef4444'}}>🔴</span> Bahaya (&gt;65% RH)</div>
+                    </div>
                   </div>
                 </div>
 

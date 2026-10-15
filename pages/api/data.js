@@ -4,15 +4,22 @@
 // GET  /api/data  → ambil 60 data terakhir untuk grafik
 
 import { supabase } from '../../lib/supabase'
-import { sendTelegramMessage } from '../../lib/telegram'
+import { sendTelegramMessage, editMessageReplyMarkup } from '../../lib/telegram'
 
 const COOLDOWN_MINUTES = 30 // Jeda notifikasi pengingat jika kondisi bahaya berlanjut
 const WIB_OFFSET = 7 * 60 * 60 * 1000
+
+const BULAN_ID = [
+  'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
+  'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
+]
+const HARI_ID = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu']
 
 // In-memory fallback state jika tabel telegram_alert_state di Supabase belum dibuat
 let memoryAlertState = {
   last_status: 'OK',
   last_alert_time: 0,
+  active_ticket_id: null,
 }
 
 function evaluateStatus(s, h) {
@@ -72,28 +79,44 @@ async function handleTelegramAlert(suhu, humid) {
     if (!shouldSend) return
 
     const nowWIB = new Date(Date.now() + WIB_OFFSET)
-    const jamWIB = `${String(nowWIB.getUTCHours()).padStart(2, '0')}:${String(nowWIB.getUTCMinutes()).padStart(2, '0')}:${String(nowWIB.getUTCSeconds()).padStart(2, '0')} WIB`
+    const jamWIB = `${String(nowWIB.getUTCHours()).padStart(2, '0')}:${String(nowWIB.getUTCMinutes()).padStart(2, '0')} WIB`
+    const hariNama = HARI_ID[nowWIB.getUTCDay()]
+    const tgl = nowWIB.getUTCDate()
+    const bln = BULAN_ID[nowWIB.getUTCMonth()]
+    const thn = nowWIB.getUTCFullYear()
+    const waktuFormat = `${hariNama}, ${tgl} ${bln} ${thn} — ${jamWIB}`
+
     const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://nextjs-app-ten-blue.vercel.app'
+    const channelUsername = process.env.TELEGRAM_CHANNEL_USERNAME || 'PemantauanSuhuServerFatmawati'
 
     let message = ''
+    let currentTicketId = state.active_ticket_id
 
     if (isRecovery) {
+      const closedTicket = currentTicketId || `#TCK-${thn}${String(nowWIB.getUTCMonth() + 1).padStart(2, '0')}${String(tgl).padStart(2, '0')}-${String(nowWIB.getUTCHours()).padStart(2, '0')}${String(nowWIB.getUTCMinutes()).padStart(2, '0')}`
+
       message = [
-        `🟢 <b>[KONDISI PULIH] RUANG SERVER KEMBALI NORMAL</b>`,
-        `<b>RS Fatmawati — Pukul ${jamWIB}</b>`,
+        `🎫 <b>[TIKET INSIDEN SUHU SELESAI / CLOSED]</b>`,
+        `━━━━━━━━━━━━━━━━━━━━━━━━━`,
+        `📌 <b>Ref. Tiket:</b> <code>${closedTicket}</code>`,
+        `🟢 <b>Status Tiket:</b> <b>RESOLVED (SUHU KEMBALI NORMAL)</b>`,
+        `🏥 <b>Lokasi:</b> Ruang Server RS Fatmawati`,
+        `🕐 <b>Waktu Pemulihan:</b> ${waktuFormat}`,
         ``,
-        `🌡️ <b>Suhu Sekarang:</b> <code>${suhu.toFixed(1)}°C</code> (Normal: 18.0–25.0°C)`,
+        `━━━━━━━━━━━━━━━━━━━━━━━━━`,
+        `📊 <b>KONDISI RUANGAN SAAT INI:</b>`,
+        `🌡️ <b>Suhu:</b> <code>${suhu.toFixed(1)}°C</code> (Normal: 18.0–25.0°C)`,
         `💧 <b>Kelembapan:</b> <code>${humid.toFixed(1)}% RH</code> (Normal: 40–55% RH)`,
-        `📊 <b>Status:</b> 🟢 NORMAL (AMAN)`,
+        `📊 <b>Status Sistem:</b> 🟢 NORMAL (AMAN)`,
         ``,
-        `Kondisi pendingin dan sirkulasi udara telah kembali berada dalam batas standar aman.`,
-        ``,
-        `🌐 <a href="${siteUrl}">Buka Dashboard Pemantauan</a>`,
+        `━━━━━━━━━━━━━━━━━━━━━━━━━`,
+        `✅ <i>Sistem pendingin dan sirkulasi udara telah kembali normal dan stabil. Terima kasih kepada tim teknisi atas respon cepat dan dokumentasi penanganan pada tiket ini.</i>`,
       ].join('\n')
     } else {
       const isCrit = currentStatus === 'CRITICAL'
-      const emoji = isCrit ? '🔴' : '🟡'
-      const judul = isCrit ? 'PERINGATAN BAHAYA (CRITICAL)' : 'PERINGATAN WASPADA (WARNING)'
+      const statusTitle = isCrit ? 'BAHAYA (CRITICAL)' : 'WASPADA (WARNING)'
+      const ticketId = state.active_ticket_id || `#TCK-${thn}${String(nowWIB.getUTCMonth() + 1).padStart(2, '0')}${String(tgl).padStart(2, '0')}-${String(nowWIB.getUTCHours()).padStart(2, '0')}${String(nowWIB.getUTCMinutes()).padStart(2, '0')}`
+      currentTicketId = ticketId
 
       const detailList = []
       if (suhu > 28.0) detailList.push(`• Suhu <b>${suhu.toFixed(1)}°C</b> melebihi batas bahaya (&gt;28.0°C)`)
@@ -107,35 +130,63 @@ async function handleTelegramAlert(suhu, humid) {
       else if (humid < 40.0) detailList.push(`• Kelembapan <b>${humid.toFixed(1)}% RH</b> mendekati batas bawah (&lt;40% RH)`)
 
       message = [
-        `${emoji} <b>[${judul}] RUANG SERVER</b>`,
-        `<b>RS Fatmawati — Pukul ${jamWIB}</b>`,
+        `🎫 <b>[TIKET GANGGUAN SUHU RUANG SERVER]</b>`,
+        `━━━━━━━━━━━━━━━━━━━━━━━━━`,
+        `📌 <b>No. Tiket:</b> <code>${ticketId}</code>`,
+        `🔴 <b>Status:</b> <b>OPEN (PERLU TINDAKAN TEKNISI)</b>`,
+        `⚠️ <b>Tingkat Keparahan:</b> ${isCrit ? '🔴 ' : '🟡 '}${statusTitle}`,
+        `🏥 <b>Lokasi:</b> Ruang Server RS Fatmawati`,
+        `🕐 <b>Waktu Peringatan:</b> ${waktuFormat}`,
         ``,
-        `<b>Parameter Terdeteksi:</b>`,
-        `🌡️ <b>Suhu:</b> <code>${suhu.toFixed(1)}°C</code>`,
-        `💧 <b>Kelembapan:</b> <code>${humid.toFixed(1)}% RH</code>`,
+        `━━━━━━━━━━━━━━━━━━━━━━━━━`,
+        `📊 <b>DETAIL ANOMALI PARAMETER:</b>`,
+        `🌡️ <b>Suhu:</b> <code>${suhu.toFixed(1)}°C</code> (Normal: 18.0–25.0°C)`,
+        `💧 <b>Kelembapan:</b> <code>${humid.toFixed(1)}% RH</code> (Normal: 40–55% RH)`,
         detailList.join('\n'),
         ``,
-        `<b>Instruksi untuk Petugas:</b>`,
-        `1. Segera lakukan pemeriksaan langsung pada AC/pendingin ruang server.`,
-        `2. Balas (reply/comment) postingan ini dengan melampirkan:`,
-        `   📸 <b>FOTO</b> bukti kondisi AC / suhu ruangan`,
-        `   📝 <b>KETERANGAN</b> tindakan yang dilakukan`,
+        `━━━━━━━━━━━━━━━━━━━━━━━━━`,
+        `🛠️ <b>RINCIAN TROUBLESHOOTING TEKNISI:</b>`,
+        `Teknisi yang bertugas dimohon segera memeriksa fisik ruang server dan mengisi laporan di <b>kolom komentar tiket ini</b>:`,
         ``,
-        `🌐 <a href="${siteUrl}">Pantau Grafik Real-Time</a>`,
+        `📸 <b>1. Lampirkan Foto:</b> Kondisi fisik AC / display termometer / panel listrik ruangan.`,
+        `📝 <b>2. Format Balasan Komentar:</b>`,
+        `• <b>Nama Teknisi:</b> [Nama Anda]`,
+        `• <b>Penyebab Masalah:</b> [AC mati / suhu outdoor panas / kompresor trip]`,
+        `• <b>Tindakan Penanganan:</b> [Reset MCB / nyalakan AC cadangan / atur suhu thermostat]`,
+        `• <b>Status Akhir:</b> [Suhu mulai turun / pendingin normal kembali]`,
+        ``,
+        `━━━━━━━━━━━━━━━━━━━━━━━━━`,
+        `<i>ℹ️ Klik tombol di bawah atau tombol 'Leave a comment' untuk mengirim gambar & laporan troubleshoot.</i>`,
       ].join('\n')
     }
 
     // Kirim pesan Telegram ke Channel
-    await sendTelegramMessage({
+    const tgRes = await sendTelegramMessage({
       text: message,
       parseMode: 'HTML',
       disableWebPagePreview: true,
       replyMarkup: {
         inline_keyboard: [
-          [{ text: '📊 Buka Dashboard Web', url: siteUrl }]
+          [{ text: '📊 Dashboard Web', url: siteUrl }]
         ]
       }
     })
+
+    // Jika pesan tiket peringatan berhasil terkirim dan ada messageId, update tombol interaktif
+    if (!isRecovery && tgRes?.success && tgRes?.messageId) {
+      const commentUrl = `https://t.me/${channelUsername}/${tgRes.messageId}?comment=1`
+      await editMessageReplyMarkup({
+        messageId: tgRes.messageId,
+        replyMarkup: {
+          inline_keyboard: [
+            [
+              { text: '💬 Kirim Troubleshoot & Foto', url: commentUrl },
+              { text: '📊 Dashboard Web', url: siteUrl }
+            ]
+          ]
+        }
+      })
+    }
 
     // Update state di database Supabase atau in-memory
     const updatedState = {
@@ -144,6 +195,7 @@ async function handleTelegramAlert(suhu, humid) {
       last_alert_time: new Date().toISOString(),
       last_suhu: parseFloat(suhu.toFixed(1)),
       last_humid: parseFloat(humid.toFixed(1)),
+      active_ticket_id: isRecovery ? null : currentTicketId,
       updated_at: new Date().toISOString(),
     }
 

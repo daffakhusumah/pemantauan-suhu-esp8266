@@ -145,18 +145,12 @@ async function handleTelegramAlert(suhu, humid) {
         detailList.join('\n'),
         ``,
         `━━━━━━━━━━━━━━━━━━━━━━━━━`,
-        `🛠️ <b>RINCIAN TROUBLESHOOTING TEKNISI:</b>`,
-        `Teknisi yang bertugas dimohon segera memeriksa fisik ruang server dan mengisi laporan di <b>kolom komentar tiket ini</b>:`,
+        `🛠️ <b>INSTRUKSI TEKNISI:</b>`,
+        `Cukup balas (comment) di bawah tiket ini dengan melampirkan:`,
+        `📸 <b>Foto fisik</b> kondisi AC / display suhu ruangan`,
+        `📝 <b>Keterangan singkat</b> tindakan penanganan yang dilakukan`,
         ``,
-        `📸 <b>1. Lampirkan Foto:</b> Kondisi fisik AC / display termometer / panel listrik ruangan.`,
-        `📝 <b>2. Format Balasan Komentar:</b>`,
-        `• <b>Nama Teknisi:</b> [Nama Anda]`,
-        `• <b>Penyebab Masalah:</b> [AC mati / suhu outdoor panas / kompresor trip]`,
-        `• <b>Tindakan Penanganan:</b> [Reset MCB / nyalakan AC cadangan / atur suhu thermostat]`,
-        `• <b>Status Akhir:</b> [Suhu mulai turun / pendingin normal kembali]`,
-        ``,
-        `━━━━━━━━━━━━━━━━━━━━━━━━━`,
-        `<i>ℹ️ Klik tombol di bawah atau tombol 'Leave a comment' untuk mengirim gambar & laporan troubleshoot.</i>`,
+        `✅ <i>Tiket otomatis dinyatakan <b>SELESAI (CLOSED)</b> setelah komentar balasan dan foto dikirimkan.</i>`,
       ].join('\n')
     }
 
@@ -180,7 +174,7 @@ async function handleTelegramAlert(suhu, humid) {
         replyMarkup: {
           inline_keyboard: [
             [
-              { text: '💬 Kirim Troubleshoot & Foto', url: commentUrl },
+              { text: '💬 Balas Troubleshoot (Komentar)', url: commentUrl },
               { text: '📊 Dashboard Web', url: siteUrl }
             ]
           ]

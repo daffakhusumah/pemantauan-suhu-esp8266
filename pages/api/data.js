@@ -4,6 +4,161 @@
 // GET  /api/data  → ambil 60 data terakhir untuk grafik
 
 import { supabase } from '../../lib/supabase'
+import { sendTelegramMessage } from '../../lib/telegram'
+
+const COOLDOWN_MINUTES = 30 // Jeda notifikasi pengingat jika kondisi bahaya berlanjut
+const WIB_OFFSET = 7 * 60 * 60 * 1000
+
+// In-memory fallback state jika tabel telegram_alert_state di Supabase belum dibuat
+let memoryAlertState = {
+  last_status: 'OK',
+  last_alert_time: 0,
+}
+
+function evaluateStatus(s, h) {
+  const isCrit = s > 28.0 || h > 65.0 || s < 15.0 || h < 35.0
+  if (isCrit) return 'CRITICAL'
+  const isWarn = s > 25.0 || h > 55.0 || s < 18.0 || h < 40.0
+  if (isWarn) return 'WARNING'
+  return 'OK'
+}
+
+async function handleTelegramAlert(suhu, humid) {
+  // Hanya proses jika kredensial Telegram tersedia
+  if (!process.env.TELEGRAM_BOT_TOKEN || !process.env.TELEGRAM_CHAT_ID) return
+
+  const currentStatus = evaluateStatus(suhu, humid)
+
+  try {
+    // 1. Coba baca state terakhir dari database telegram_alert_state
+    let state = memoryAlertState
+    try {
+      const { data: dbState, error: stateErr } = await supabase
+        .from('telegram_alert_state')
+        .select('*')
+        .eq('id', 1)
+        .maybeSingle()
+
+      if (!stateErr && dbState) {
+        state = dbState
+      }
+    } catch (_) {}
+
+    const lastStatus = state.last_status || 'OK'
+    const lastTime = state.last_alert_time ? new Date(state.last_alert_time).getTime() : 0
+    const now = Date.now()
+    const diffMinutes = (now - lastTime) / (60 * 1000)
+
+    let shouldSend = false
+    let isRecovery = false
+
+    if (currentStatus === 'CRITICAL' || currentStatus === 'WARNING') {
+      // Kondisi 1: Status berubah naik (misal dari OK -> WARNING/CRITICAL, atau WARNING -> CRITICAL)
+      if (lastStatus !== currentStatus) {
+        shouldSend = true
+      }
+      // Kondisi 2: Status masih sama (misal terus-menerus Bahaya), tapi sudah lewat batas cooldown 30 menit
+      else if (diffMinutes >= COOLDOWN_MINUTES) {
+        shouldSend = true
+      }
+    } else if (currentStatus === 'OK') {
+      // Kondisi 3: Recovery (Sebelumnya Bahaya/Waspada, sekarang sudah kembali Normal)
+      if (lastStatus === 'CRITICAL' || lastStatus === 'WARNING') {
+        shouldSend = true
+        isRecovery = true
+      }
+    }
+
+    if (!shouldSend) return
+
+    const nowWIB = new Date(Date.now() + WIB_OFFSET)
+    const jamWIB = `${String(nowWIB.getUTCHours()).padStart(2, '0')}:${String(nowWIB.getUTCMinutes()).padStart(2, '0')}:${String(nowWIB.getUTCSeconds()).padStart(2, '0')} WIB`
+    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://nextjs-app-ten-blue.vercel.app'
+
+    let message = ''
+
+    if (isRecovery) {
+      message = [
+        `🟢 <b>[KONDISI PULIH] RUANG SERVER KEMBALI NORMAL</b>`,
+        `<b>RS Fatmawati — Pukul ${jamWIB}</b>`,
+        ``,
+        `🌡️ <b>Suhu Sekarang:</b> <code>${suhu.toFixed(1)}°C</code> (Normal: 18.0–25.0°C)`,
+        `💧 <b>Kelembapan:</b> <code>${humid.toFixed(1)}% RH</code> (Normal: 40–55% RH)`,
+        `📊 <b>Status:</b> 🟢 NORMAL (AMAN)`,
+        ``,
+        `Kondisi pendingin dan sirkulasi udara telah kembali berada dalam batas standar aman.`,
+        ``,
+        `🌐 <a href="${siteUrl}">Buka Dashboard Pemantauan</a>`,
+      ].join('\n')
+    } else {
+      const isCrit = currentStatus === 'CRITICAL'
+      const emoji = isCrit ? '🔴' : '🟡'
+      const judul = isCrit ? 'PERINGATAN BAHAYA (CRITICAL)' : 'PERINGATAN WASPADA (WARNING)'
+
+      const detailList = []
+      if (suhu > 28.0) detailList.push(`• Suhu <b>${suhu.toFixed(1)}°C</b> melebihi batas bahaya (&gt;28.0°C)`)
+      else if (suhu > 25.0) detailList.push(`• Suhu <b>${suhu.toFixed(1)}°C</b> mendekati batas atas (25.1–28.0°C)`)
+      else if (suhu < 15.0) detailList.push(`• Suhu <b>${suhu.toFixed(1)}°C</b> terlalu dingin (&lt;15.0°C)`)
+      else if (suhu < 18.0) detailList.push(`• Suhu <b>${suhu.toFixed(1)}°C</b> di bawah batas normal (&lt;18.0°C)`)
+
+      if (humid > 65.0) detailList.push(`• Kelembapan <b>${humid.toFixed(1)}% RH</b> melebihi batas bahaya (&gt;65% RH)`)
+      else if (humid > 55.0) detailList.push(`• Kelembapan <b>${humid.toFixed(1)}% RH</b> mendekati batas atas (56–65% RH)`)
+      else if (humid < 35.0) detailList.push(`• Kelembapan <b>${humid.toFixed(1)}% RH</b> terlalu kering (&lt;35% RH)`)
+      else if (humid < 40.0) detailList.push(`• Kelembapan <b>${humid.toFixed(1)}% RH</b> mendekati batas bawah (&lt;40% RH)`)
+
+      message = [
+        `${emoji} <b>[${judul}] RUANG SERVER</b>`,
+        `<b>RS Fatmawati — Pukul ${jamWIB}</b>`,
+        ``,
+        `<b>Parameter Terdeteksi:</b>`,
+        `🌡️ <b>Suhu:</b> <code>${suhu.toFixed(1)}°C</code>`,
+        `💧 <b>Kelembapan:</b> <code>${humid.toFixed(1)}% RH</code>`,
+        detailList.join('\n'),
+        ``,
+        `<b>Instruksi untuk Petugas:</b>`,
+        `1. Segera lakukan pemeriksaan langsung pada AC/pendingin ruang server.`,
+        `2. Balas (reply/comment) postingan ini dengan melampirkan:`,
+        `   📸 <b>FOTO</b> bukti kondisi AC / suhu ruangan`,
+        `   📝 <b>KETERANGAN</b> tindakan yang dilakukan`,
+        ``,
+        `🌐 <a href="${siteUrl}">Pantau Grafik Real-Time</a>`,
+      ].join('\n')
+    }
+
+    // Kirim pesan Telegram ke Channel
+    await sendTelegramMessage({
+      text: message,
+      parseMode: 'HTML',
+      disableWebPagePreview: true,
+      replyMarkup: {
+        inline_keyboard: [
+          [{ text: '📊 Buka Dashboard Web', url: siteUrl }]
+        ]
+      }
+    })
+
+    // Update state di database Supabase atau in-memory
+    const updatedState = {
+      id: 1,
+      last_status: currentStatus,
+      last_alert_time: new Date().toISOString(),
+      last_suhu: parseFloat(suhu.toFixed(1)),
+      last_humid: parseFloat(humid.toFixed(1)),
+      updated_at: new Date().toISOString(),
+    }
+
+    memoryAlertState = updatedState
+
+    try {
+      await supabase
+        .from('telegram_alert_state')
+        .upsert(updatedState, { onConflict: 'id' })
+    } catch (_) {}
+
+  } catch (err) {
+    console.warn('[Telegram Alert Warning]', err.message)
+  }
+}
 
 export default async function handler(req, res) {
   // ─── CORS (izinkan ESP8266 dan browser) ─────────────────────────────────
@@ -52,6 +207,11 @@ export default async function handler(req, res) {
       console.error('[Supabase error]', error)
       return res.status(500).json({ error: 'Gagal simpan ke database', detail: error.message })
     }
+
+    // Trigger pengecekan alert Telegram (Asynchronous & Anti-Spam)
+    handleTelegramAlert(suhu, humid).catch(err => {
+      console.warn('[Telegram Alert Async Warning]', err.message)
+    })
 
     return res.status(201).json({ success: true, message: 'Data tersimpan' })
   }

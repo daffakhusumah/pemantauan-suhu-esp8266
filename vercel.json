@@ -2,8 +2,12 @@
   "version": 2,
   "crons": [
     {
-      "path": "/api/cron/rollup",
-      "schedule": "15 17 * * *"
+      "path": "/api/cron/telegram-report?time=morning",
+      "schedule": "0 1 * * *"
+    },
+    {
+      "path": "/api/cron/telegram-report?time=night",
+      "schedule": "0 13 * * *"
     }
   ]
 }
